@@ -1,4 +1,5 @@
 import { DailyReportService } from '../application/services/daily-report.service';
+import { ReportSnapshotService } from '../application/services/report-snapshot.service';
 import { TriggerEventService } from '../application/services/trigger-event.service';
 import { WebAppService } from '../application/services/web-app.service';
 import { WorkspaceMenuService } from '../application/services/workspace-menu.service';
@@ -31,6 +32,7 @@ export interface AppContainer {
   readonly drivePort: DrivePort;
   readonly uiPort: UiPort;
   readonly dailyReportService: DailyReportService;
+  readonly reportSnapshotService: ReportSnapshotService;
   readonly triggerEventService: TriggerEventService;
   readonly webAppService: WebAppService;
   readonly workspaceMenuService: WorkspaceMenuService;
@@ -55,6 +57,12 @@ export const createAppContainer = (options: CreateAppContainerOptions = {}): App
   const drivePort = new DriveAdapter();
   const uiPort = new AppsScriptUiAdapter();
   const dailyReportService = new DailyReportService(configService, sheetPort, mailPort, logger);
+  const reportSnapshotService = new ReportSnapshotService(
+    configService,
+    sheetPort,
+    drivePort,
+    logger,
+  );
   const triggerEventService = new TriggerEventService(configService, sheetPort, logger);
   const webAppService = new WebAppService(configService, drivePort, logger);
   const workspaceMenuService = new WorkspaceMenuService(configService, uiPort);
@@ -69,6 +77,7 @@ export const createAppContainer = (options: CreateAppContainerOptions = {}): App
     drivePort,
     uiPort,
     dailyReportService,
+    reportSnapshotService,
     triggerEventService,
     webAppService,
     workspaceMenuService,

@@ -1,4 +1,5 @@
 import { createAppContainer } from './config/service-container';
+import { createWorkspaceActionHandlers } from './config/workspace-actions';
 import { handleOnEdit } from './entrypoints/triggers/on-edit';
 import { handleOnOpen } from './entrypoints/triggers/on-open';
 import { handleTimeTrigger } from './entrypoints/triggers/time-trigger';
@@ -15,20 +16,8 @@ const onEdit = (event: GoogleAppsScript.Events.SheetsOnEdit): void => {
   handleOnEdit(container, event);
 };
 
-const runDailyReport = (): void => {
-  const report = container.dailyReportService.run();
-  container.uiPort.alert(
-    'Daily Report Completed',
-    `Generated ${report.rows.length} rows from ${report.sourceSheet}.`,
-  );
-};
-
 const runTimeTrigger = (): void => {
   handleTimeTrigger(container);
-};
-
-const showStarterHelp = (): void => {
-  container.workspaceMenuService.showHelp();
 };
 
 const doGet = (): GoogleAppsScript.Content.TextOutput => {
@@ -42,9 +31,8 @@ const doPost = (event: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content
 Object.assign(globalThis, {
   onOpen,
   onEdit,
-  runDailyReport,
   runTimeTrigger,
-  showStarterHelp,
   doGet,
   doPost,
+  ...createWorkspaceActionHandlers(container),
 });

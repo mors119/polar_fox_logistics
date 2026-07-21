@@ -1,17 +1,39 @@
-# Contributing
+# 기여 가이드
 
-## Principles
+## 기본 원칙
 
-- keep business logic inside `src/application`
-- add or update ports before adding direct runtime calls
-- prefer reusable abstractions over project-specific shortcuts
-- add tests for new application services
-- update docs when architecture or workflow changes
+- 비즈니스 로직은 `src/application` 안에 둡니다.
+- Google Apps Script API나 외부 API를 바로 호출하지 말고 먼저 포트를 검토합니다.
+- 일회성 우회 코드보다 재사용 가능한 구조를 우선합니다.
+- 새 서비스에는 가능한 한 테스트를 같이 추가합니다.
+- 구조, 설정, 운영 흐름이 바뀌면 문서도 함께 수정합니다.
 
-## Pull Request Checklist
+## NorthFox Logistics 관점의 기여 기준
+
+- 주문, 재고, 출고, 배송, 보고서 기능은 서로 다른 유스케이스로 분리합니다.
+- 하나의 기능 추가 때문에 `src/index.ts`나 메뉴 관련 파일을 과도하게 수정하지 않도록 액션 등록 구조를 사용합니다.
+- Cafe24, 택배 API 같은 외부 연동은 애플리케이션 서비스 내부에 하드코딩하지 않습니다.
+- 시트 컬럼 구조를 바꾸면 해당 문서와 테스트도 같이 업데이트합니다.
+
+## Pull Request 체크리스트
 
 - `npm run format`
 - `npm run lint`
 - `npm run typecheck`
 - `npm run test`
 - `npm run build`
+
+## 권장 작업 순서
+
+1. 변경할 업무 흐름이 주문, 재고, 배송 중 어디에 속하는지 먼저 정리합니다.
+2. 필요한 포트와 도메인 모델을 정의합니다.
+3. 서비스 구현 후 인프라 어댑터를 연결합니다.
+4. 메뉴, 트리거, 웹앱 등 노출 지점을 최소 범위로 수정합니다.
+5. 테스트와 문서를 갱신합니다.
+
+## 리뷰 시 중점 확인 항목
+
+- 비즈니스 규칙이 인프라 구현과 섞이지 않았는지
+- 설정값이 코드에 하드코딩되지 않았는지
+- 시트 이름, 범위, 캘린더 ID, 외부 API 토큰이 설정 계층을 통해 주입되는지
+- 실제 운영 데이터를 손상시킬 수 있는 쓰기 동작이 분리되어 있는지

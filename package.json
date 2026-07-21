@@ -1,8 +1,8 @@
 {
-  "name": "google-apps-script-typescript-starter",
+  "name": "polar_fox",
   "version": "1.0.0",
   "private": true,
-  "description": "Reusable Google Apps Script starter for Google Workspace automations built with TypeScript, clean architecture, esbuild, Vitest, clasp, and GitHub Actions.",
+  "description": "Google apps script automation project",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
