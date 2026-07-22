@@ -1,29 +1,16 @@
 # NorthFox Logistics
 
-북극여우 스토어의 주문, 출고, 재고, 배송 운영을 Google Workspace와 외부 API 기반으로 자동화하기 위한 Google Apps Script 프로젝트입니다.
+북극여우 스토어의 주문, 출고, 재고, 배송 운영을 Google Workspace 중심으로 자동화하기 위한 Google Apps Script 프로젝트입니다.
 
-이 저장소는 **NorthFox Logistics**를 실제로 확장해 가기 위한 코드베이스입니다.  
-현재는 공통 구조와 샘플 자동화 기능이 포함되어 있고, 이후 Cafe24 주문 수집, 재고 차감, 송장 발급, 배송 추적, 운영 대시보드 기능을 이 구조 위에 올리는 것을 목표로 합니다.
-
-## 프로젝트 목표
-
-- 주문 데이터를 자동 수집하고 표준화합니다.
-- Google Sheets를 운영 중심 데이터 저장소로 사용합니다.
-- 재고 변동을 자동 반영할 수 있는 구조를 만듭니다.
-- 출고 일정과 배송 상태를 Google Workspace 안에서 관리합니다.
-- 운영 지표와 주간 보고를 자동화합니다.
+이 저장소는 프레임워크형 계층 구조보다 Apps Script의 실제 개발 흐름에 맞춘 애플리케이션 코드베이스를 지향합니다. 기능은 폴더 단위로 모으고, 공통 런타임 호출은 `shared`에 두며, 진입점은 `onOpen`, `onEdit`, `doGet`, `doPost`, 시간 트리거처럼 바로 따라갈 수 있게 유지합니다.
 
 ## 현재 구현된 기능
 
-현재 코드 기준으로 실제 포함된 기능은 아래와 같습니다.
-
-- 시트 데이터를 읽어 Gmail로 리포트를 보내는 기능
-- 시트 데이터를 Drive JSON 파일로 저장하는 스냅샷 기능
-- Web App POST payload를 Drive에 저장하는 기능
-- `onOpen`, `onEdit`, 시간 기반 트리거 진입점
-- 스프레드시트 메뉴 액션 등록 구조
-
-즉, 문서상 최종 목표는 물류 자동화 전체 흐름이지만, 현재 구현 상태는 그 흐름을 확장하기 위한 기반 플랫폼에 가깝습니다.
+- 시트 데이터를 읽어 Gmail로 일일 리포트를 발송
+- 시트 데이터를 Drive JSON 파일로 스냅샷 저장
+- Web App POST payload를 Drive에 저장
+- `onOpen`, `onEdit`, 시간 기반 트리거
+- 스프레드시트 메뉴 액션
 
 ## 목표 업무 흐름
 
@@ -39,40 +26,42 @@ Cafe24 주문
                 -> 대시보드 및 주간 보고서
 ```
 
-## 기술 구조
-
-```text
-Entrypoints
-  -> Application Services
-    -> Domain Models
-      -> Ports
-        -> Infrastructure Adapters
-          -> Google Workspace APIs
-          -> External APIs
-```
-
-주요 디렉터리:
+## 디렉터리 구조
 
 ```text
 src/
-├── application/
-│   ├── ports/
-│   └── services/
 ├── config/
-├── domain/
-│   ├── entities/
-│   └── models/
-├── entrypoints/
-│   ├── sheets/
-│   ├── triggers/
-│   └── webapp/
-├── infrastructure/
-│   ├── adapters/
-│   ├── http/
-│   └── logging/
-├── utils/
+│   └── keys.ts
+├── reports/
+│   ├── daily-report.ts
+│   ├── menu.ts
+│   └── report-snapshot.ts
+├── shared/
+│   ├── config.ts
+│   ├── drive.ts
+│   ├── gmail.ts
+│   ├── http.ts
+│   ├── json.ts
+│   ├── logger.ts
+│   ├── sheets.ts
+│   ├── types.ts
+│   └── ui.ts
+├── triggers/
+│   ├── on-edit.ts
+│   ├── on-open.ts
+│   └── time-trigger.ts
+├── webapp/
+│   └── handlers.ts
 └── index.ts
 ```
+
+## 구조 원칙
+
+- 이 저장소는 애플리케이션입니다. 프레임워크처럼 확장 포인트를 과도하게 만들지 않습니다.
+- 기능은 `reports`, `webapp`, `triggers`처럼 업무 흐름 기준으로 찾을 수 있어야 합니다.
+- Google Apps Script 전역 객체 호출은 `shared`의 작은 함수에 모읍니다.
+- 클래스보다 함수, 인터페이스보다 읽기 쉬운 직접 코드, 추상화보다 유지보수 속도를 우선합니다.
+- 테스트는 기능 함수 단위로 작성하고, Apps Script 전역 객체는 의존 함수 주입으로 대체합니다.
 
 ## 실행 전 준비물
 
@@ -128,13 +117,7 @@ Apps Script Editor
 
 ### 4. 로컬 `.clasp.json` 생성
 
-예시 파일을 복사합니다.
-
-```bash
-cp .clasp.json.example .clasp.json
-```
-
-그리고 `.clasp.json`을 열어 실제 Script ID를 넣습니다.
+`.clasp.json` 파일을 만들고 실제 Script ID를 넣습니다.
 
 예시:
 
@@ -149,7 +132,7 @@ cp .clasp.json.example .clasp.json
 
 - `.clasp.json`은 로컬 파일입니다.
 - 실제 Script ID가 들어가므로 커밋하면 안 됩니다.
-- 저장소에는 `.clasp.json.example`만 남겨둡니다.
+- 저장소에 넣지 않고 로컬에만 둡니다.
 
 ### 5. Apps Script API 활성화
 
@@ -196,9 +179,6 @@ REPORT_RANGE
 REPORT_MENU_TITLE
 REPORT_DRIVE_FOLDER
 REPORT_SNAPSHOT_FOLDER
-EXTERNAL_API_URL
-EXTERNAL_API_TOKEN
-DEFAULT_CALENDAR_ID
 ```
 
 권장 예시:
@@ -210,18 +190,6 @@ REPORT_RANGE=A1:C10
 REPORT_MENU_TITLE=NorthFox Logistics
 REPORT_DRIVE_FOLDER=NorthFox Payloads
 REPORT_SNAPSHOT_FOLDER=NorthFox Snapshots
-EXTERNAL_API_URL=https://api.example.com
-EXTERNAL_API_TOKEN=replace-me
-DEFAULT_CALENDAR_ID=primary
-```
-
-향후 물류 기능 확장 시 아래 설정이 추가될 수 있습니다.
-
-```text
-CAFE24_API_URL
-CAFE24_ACCESS_TOKEN
-SHIPPING_API_URL
-SHIPPING_API_TOKEN
 ```
 
 ### 8. 로컬 검증 실행
@@ -356,15 +324,47 @@ NorthFox Logistics Spreadsheet
 
 ## 팀 작업 방식
 
-여러 사람이 동시에 작업할 때는 아래 원칙을 권장합니다.
+- 새 기능은 먼저 기능 폴더를 정하고 그 안에서 필요한 함수와 타입을 같이 둡니다.
+- 공통으로 재사용할 가치가 명확한 경우에만 `src/shared`로 올립니다.
+- 메뉴 액션은 `src/reports/menu.ts`처럼 기능 근처에 둡니다.
+- 트리거나 웹앱 진입점은 얇게 유지하고 실제 작업은 기능 함수가 담당하게 합니다.
+- 시트 구조나 설정 키를 바꾸면 테스트와 문서도 같이 수정합니다.
 
-- 비즈니스 로직은 `src/application/services`에 둡니다.
-- 외부 시스템 연동은 먼저 포트로 추상화합니다.
-- 메뉴 실행 기능은 `src/config/workspace-actions.ts`에 등록합니다.
-- 공용 진입점 파일 하나에 로직을 계속 몰아넣지 않습니다.
-- 시트 구조를 바꾸면 문서와 테스트도 같이 수정합니다.
+## 이번 리팩터링 요약
 
-현재 메뉴 액션 레지스트리 구조를 사용하면 기능 추가 시 `src/index.ts` 전체를 계속 갈아엎는 문제를 줄일 수 있습니다.
+### 새 디렉터리 트리
+
+위 `src/` 구조가 현재 기준 구조입니다.
+
+### 파일 이동 계획과 결과
+
+- `application/services/daily-report.service.ts` -> `reports/daily-report.ts`
+- `application/services/report-snapshot.service.ts` -> `reports/report-snapshot.ts`
+- `application/services/web-app.service.ts` -> `webapp/handlers.ts`
+- `application/services/trigger-event.service.ts` -> `triggers/on-edit.ts`
+- `application/services/workspace-menu.service.ts` + `config/workspace-actions.ts` -> `reports/menu.ts`
+- `entrypoints/triggers/*` -> `triggers/*`
+- `entrypoints/webapp/*` -> `webapp/handlers.ts`
+- `infrastructure/*`의 얇은 Apps Script 래퍼 -> `shared/*`
+- `domain/*` 타입 -> 기능 파일 내부 또는 `shared/types.ts`
+- `config/config.service.ts`와 provider 계층 -> `shared/config.ts`
+
+### 삭제한 추상화
+
+- Application Layer
+- Domain Layer
+- Ports
+- Adapters
+- Service Container
+- Dependency Injection 조립 루트
+- 구현이 하나뿐인 인터페이스와 클래스
+
+### 단순화 이유
+
+- 기능을 찾을 때 `reports`나 `webapp`만 보면 되므로 탐색 비용이 낮아졌습니다.
+- Apps Script 런타임 호출은 여전히 분리되어 있지만, 포트와 어댑터를 왕복하지 않아 읽기가 쉬워졌습니다.
+- 테스트는 클래스 인스턴스 조립 대신 함수에 필요한 의존성만 넘기면 되므로 더 직접적입니다.
+- 새 기능을 추가할 때 한 기능이 여러 계층에 흩어지지 않아 변경 범위가 작아집니다.
 
 ## GitHub Actions 배포
 
@@ -489,7 +489,6 @@ npx clasp login
 상세 문서는 아래를 참고하면 됩니다.
 
 - [아키텍처](./docs/Architecture.md)
-- [어댑터](./docs/ADAPTERS.md)
 - [개발 문서](./docs/Development.md)
 - [배포 문서](./docs/Deployment.md)
 - [기여 가이드](./docs/Contributing.md)

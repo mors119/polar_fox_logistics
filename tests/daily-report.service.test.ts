@@ -1,84 +1,40 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { CONFIG_KEYS } from '../src/config/config-keys';
-import { ConfigService, type ConfigurationProvider } from '../src/config/config.service';
-import { DailyReportService } from '../src/application/services/daily-report.service';
-import type { LoggerPort } from '../src/application/ports/logger.port';
-import type {
-  MailPort,
-  SendHtmlMailInput,
-  SendMailInput,
-} from '../src/application/ports/mail.port';
-import type {
-  SheetPort,
-  SheetRangeInput,
-  SheetTable,
-  SheetWriteInput,
-} from '../src/application/ports/sheet.port';
+import { CONFIG_KEYS } from '../src/config/keys';
+import { runDailyReport } from '../src/reports/daily-report';
+import type { SendHtmlMailInput } from '../src/shared/gmail';
+import type { SheetRange } from '../src/shared/sheets';
+import type { SheetTable } from '../src/shared/types';
 
-class InMemoryConfigurationProvider implements ConfigurationProvider {
-  public constructor(private readonly values: Partial<Record<string, string>>) {}
-
-  public get(key: string): string | null {
-    return this.values[key] ?? null;
-  }
-}
-
-class FakeSheetPort implements SheetPort {
-  public constructor(private readonly values: SheetTable) {}
-
-  public createSheet(_sheetName: string): void {}
-
-  public readValues(_input: SheetRangeInput): SheetTable {
-    return this.values;
-  }
-
-  public writeValues(_input: SheetWriteInput): void {}
-
-  public appendRow(_sheetName: string, _row: ReadonlyArray<unknown>): void {}
-}
-
-class FakeMailPort implements MailPort {
-  public sentMail: SendMailInput | SendHtmlMailInput | null = null;
-
-  public send(input: SendMailInput): void {
-    this.sentMail = input;
-  }
-
-  public sendHtml(input: SendHtmlMailInput): void {
-    this.sentMail = input;
-  }
-}
-
-describe('DailyReportService', () => {
+describe('runDailyReport', () => {
   it('reads from the configured sheet and sends an HTML report', () => {
-    const configService = new ConfigService([
-      new InMemoryConfigurationProvider({
+    const sentMail = {
+      current: null as SendHtmlMailInput | null,
+    };
+    const logger = vi.fn();
+
+    const report = runDailyReport({
+      config: {
         [CONFIG_KEYS.reportRecipient]: 'ops@example.com',
         [CONFIG_KEYS.reportSheetName]: 'Daily Summary',
         [CONFIG_KEYS.reportRange]: 'A1:B2',
-      }),
-    ]);
-    const sheetPort = new FakeSheetPort([
-      ['Metric', 'Value'],
-      ['Open Tickets', 12],
-    ]);
-    const mailPort = new FakeMailPort();
-    const logger: LoggerPort = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-    const service = new DailyReportService(configService, sheetPort, mailPort, logger);
-
-    const report = service.run();
+      },
+      readValues: (_input: SheetRange): SheetTable => [
+        ['Metric', 'Value'],
+        ['Open Tickets', 12],
+      ],
+      sendReport: (input: SendHtmlMailInput): void => {
+        sentMail.current = input;
+      },
+      info: logger,
+    });
 
     expect(report.sourceSheet).toBe('Daily Summary');
     expect(report.rows).toHaveLength(2);
-    expect(mailPort.sentMail).toMatchObject({
+    expect(sentMail.current).toMatchObject({
       to: 'ops@example.com',
       subject: 'Daily report: Daily Summary',
     });
+    expect(logger).toHaveBeenCalled();
   });
 });

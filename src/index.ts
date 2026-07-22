@@ -1,32 +1,33 @@
-import { createAppContainer } from './config/service-container';
-import { createWorkspaceActionHandlers } from './config/workspace-actions';
-import { handleOnEdit } from './entrypoints/triggers/on-edit';
-import { handleOnOpen } from './entrypoints/triggers/on-open';
-import { handleTimeTrigger } from './entrypoints/triggers/time-trigger';
-import { handleDoGet } from './entrypoints/webapp/do-get';
-import { handleDoPost } from './entrypoints/webapp/do-post';
+import {
+  exportReportSnapshotMenuAction,
+  runDailyReportMenuAction,
+  showStarterHelpMenuAction,
+} from './reports/menu';
+import { handleOnOpen } from './triggers/on-open';
+import { recordEdit } from './triggers/on-edit';
+import { handleTimeTrigger } from './triggers/time-trigger';
+import { createJsonOutput } from './shared/http';
+import { handleWebAppGet, handleWebAppPost } from './webapp/handlers';
 
-const container = createAppContainer();
+export function onOpen(): void {
+  handleOnOpen();
+}
 
-const onOpen = (): void => {
-  handleOnOpen(container);
-};
+export function onEdit(event: GoogleAppsScript.Events.SheetsOnEdit): void {
+  recordEdit(event);
+}
 
-const onEdit = (event: GoogleAppsScript.Events.SheetsOnEdit): void => {
-  handleOnEdit(container, event);
-};
+export function runTimeTrigger(): void {
+  handleTimeTrigger();
+}
 
-const runTimeTrigger = (): void => {
-  handleTimeTrigger(container);
-};
+export function doGet(): GoogleAppsScript.Content.TextOutput {
+  return createJsonOutput(handleWebAppGet());
+}
 
-const doGet = (): GoogleAppsScript.Content.TextOutput => {
-  return handleDoGet(container);
-};
-
-const doPost = (event: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content.TextOutput => {
-  return handleDoPost(container, event);
-};
+export function doPost(event: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content.TextOutput {
+  return createJsonOutput(handleWebAppPost(event.postData?.contents ?? '{}'));
+}
 
 Object.assign(globalThis, {
   onOpen,
@@ -34,5 +35,7 @@ Object.assign(globalThis, {
   runTimeTrigger,
   doGet,
   doPost,
-  ...createWorkspaceActionHandlers(container),
+  runDailyReportMenuAction,
+  exportReportSnapshotMenuAction,
+  showStarterHelpMenuAction,
 });
