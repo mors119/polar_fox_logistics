@@ -7,7 +7,7 @@ function createSampleCsvFile() {
       'P00000KR000B',
       'FOX-BOOK-001',
       '북극여우',
-      'https://example.com/book.jpg',
+      'book-image-sample',
       '도서',
       '단품',
       '헌터 시즌1 1권',

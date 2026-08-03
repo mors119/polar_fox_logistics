@@ -36,9 +36,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
-
       - name: Configure clasp authentication
         env:
           CLASP_CREDENTIALS: ${{ secrets.CLASP_CREDENTIALS }}
@@ -49,7 +46,13 @@ jobs:
       - name: Generate clasp project file
         env:
           CLASP_SCRIPT_ID: ${{ secrets.CLASP_SCRIPT_ID }}
-        run: npm run clasp:config
+        run: |
+          cat > .clasp.json <<EOF
+          {
+            "scriptId": "${CLASP_SCRIPT_ID}",
+            "rootDir": "src"
+          }
+          EOF
 
       - name: Push to Google Apps Script
         run: npx clasp push --force
