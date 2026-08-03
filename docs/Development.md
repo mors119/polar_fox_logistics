@@ -1,48 +1,51 @@
 # 개발 문서
 
-## 프로젝트 성격
+## 개발 전제
 
-이 저장소는 북극여우 스토어의 주문, 재고, 출고, 배송 업무를 자동화하기 위한 Google Apps Script 기반 JavaScript 프로젝트입니다.
+- Apps Script 소스는 `src/` 아래 JavaScript 파일입니다.
+- `clasp push` 시 빌드 단계 없이 `src/`가 그대로 반영됩니다.
+- 초기화 함수는 모두 **바인드된 Google Sheets** 환경에서 실행해야 합니다.
 
-현재 코드는 상품 CSV 처리와 주문 CSV 처리를 중심으로 구성되어 있습니다.
+## 로컬 준비
 
-## 로컬 개발 준비
+1. `npm install`
+2. `.clasp.json.example` 기반으로 `.clasp.json` 생성
+3. `npx clasp login`
+4. 대상 Apps Script 프로젝트가 Google Sheets 바인드 프로젝트인지 확인
 
-1. `npm install`로 의존성을 설치합니다.
-2. `.clasp.json.example`을 `.clasp.json`으로 복사합니다.
-3. `npx clasp login`으로 인증합니다.
-4. 대상 Apps Script 프로젝트에 필요한 Script Properties를 설정합니다.
-
-## 주요 명령어
+## 개발 명령
 
 - `npm run format`
 - `npm run format:write`
 - `npm run lint`
 - `npm run lint:fix`
-- `npm run push`
 - `npm run pull`
+- `npm run push`
 
-## 현재 포함 기능
+## 실제 개발 흐름
 
-- 상품 CSV를 읽어 상품마스터 시트에 반영
-- 주문 CSV를 읽어 주문/주문상세 시트에 반영
-- 처리 이력과 오류 로그 기록
-- 폴더, 시트, 시간 기반 트리거 초기 설정
+### 상품 CSV 기능 수정 시
 
-## 기능 확장 패턴
+1. `src/Config.js`에서 헤더/시트/폴더 설정 확인
+2. `src/CsvVaildation.js`에서 파싱/검증 규칙 수정
+3. `src/Productimport.js`에서 적재 규칙 수정
+4. `src/Main.js`에서 흐름 수정
+5. 필요한 경우 `src/Setup.js`에서 초기화 구조 수정
 
-1. `src/Config.js` 또는 `src/Order_Config.js`에 설정값을 추가합니다.
-2. 파싱 로직은 `src/CsvVaildation.js` 또는 `src/Order_CsvParser.js`에 반영합니다.
-3. 검증 규칙은 `src/Productimport.js` 또는 `src/Order_Validator.js`에 추가합니다.
-4. 처리 흐름은 `src/Main.js` 또는 `src/Order_Main.js`에 연결합니다.
-5. 초기 설정이나 트리거 변경은 `src/Setup.js` 또는 `src/Order_Setup.js`에서 처리합니다.
-6. 오류/이력 기록 형식이 바뀌면 관련 서비스 파일도 함께 수정합니다.
+### 주문 CSV 기능 수정 시
 
-## NorthFox Logistics 확장 후보
+1. `src/Order_Config.js`에서 헤더/시트/폴더 설정 확인
+2. `src/Order_CsvParser.js`에서 파싱 수정
+3. `src/Order_Validator.js`에서 검증 규칙 수정
+4. `src/Order_DuplicateChecker.js`에서 중복 정책 수정
+5. `src/Order_SheetRepository.js`에서 적재/롤백 수정
+6. `src/Order_Main.js`에서 메인 흐름 수정
+7. 필요한 경우 `src/Order_Setup.js`에서 초기화 구조 수정
 
-- Cafe24 주문 수집 서비스
-- 재고 자동 차감 서비스
-- 송장 발급 서비스
-- 배송 상태 동기화 서비스
-- 주간 운영 요약 리포트 서비스
-- 운영 대시보드 집계 서비스
+## 수동 확인 포인트
+
+- 상품 CSV는 `csv_input`만 감시하는지
+- 주문 CSV는 `order_csv_input`만 감시하는지
+- 파일 확장자가 `.csv`인지
+- 오류 발생 시 오류 폴더와 오류 시트가 같이 갱신되는지
+- 성공 시 처리완료 폴더로 이동하는지
