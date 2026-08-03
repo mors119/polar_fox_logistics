@@ -1,3 +1,4 @@
+// 상품 입력 폴더를 순회하면서 CSV 파일만 골라 처리한다.
 function scanCsvInputFolder() {
   const lock = LockService.getScriptLock();
 
@@ -24,6 +25,7 @@ function scanCsvInputFolder() {
   }
 }
 
+// 상품 CSV 한 개를 파싱, 검증, 저장, 이동까지 처리하는 메인 흐름이다.
 function processCsvFile_(file) {
   const startedAt = new Date();
   let totalRows = 0;
@@ -41,6 +43,7 @@ function processCsvFile_(file) {
     const headers = table[0].map(normalizeHeader_);
     validateHeaders_(headers);
 
+    // 헤더 아래의 실제 데이터 행만 추려서 빈 줄은 버린다.
     const rows = table
       .slice(1)
       .filter((row) => row.some((value) => String(value || '').trim() !== ''));
@@ -50,6 +53,7 @@ function processCsvFile_(file) {
     const products = mapRowsToObjects_(headers, rows);
     const validation = validateProductRows_(products);
 
+    // 행 검증 오류는 개별 오류 로그를 남긴 뒤 파일 전체 실패로 처리한다.
     if (!validation.valid) {
       validation.errors.forEach((error) => {
         appendErrorLog_(file, 'ROW_VALIDATION', error);
@@ -64,6 +68,7 @@ function processCsvFile_(file) {
       throw error;
     }
 
+    // 시트 중복 검사와 실제 저장은 검증이 끝난 뒤에만 수행한다.
     assertNoDuplicateProductCodes_(products);
     importedRows = importProducts_(file, products);
 
@@ -78,6 +83,7 @@ function processCsvFile_(file) {
       message: '상품마스터 등록 완료',
     });
   } catch (error) {
+    // 예외가 아직 로그로 남지 않은 경우에만 공통 오류 로그를 한 번 추가한다.
     if (!error.alreadyLogged) {
       appendErrorLog_(file, error.stage || 'PROCESS', {
         rowNumber: '',
@@ -106,6 +112,7 @@ function processCsvFile_(file) {
   }
 }
 
+// 확장자와 MIME 타입 기준으로 CSV 파일만 처리 대상으로 본다.
 function isCsvFile_(file) {
   return (
     file.getName().toLowerCase().endsWith('.csv') ||
@@ -114,6 +121,7 @@ function isCsvFile_(file) {
   );
 }
 
+// 폴더 ID는 Script Properties에 저장된 값을 기준으로 찾는다.
 function getConfiguredFolder_(propertyKey) {
   const id = PropertiesService.getScriptProperties().getProperty(propertyKey);
 

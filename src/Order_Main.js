@@ -1,3 +1,4 @@
+// 주문 입력 폴더를 순회하면서 CSV 파일만 골라 처리한다.
 function scanOrderFolder() {
   const lock = LockService.getScriptLock();
 
@@ -24,6 +25,7 @@ function scanOrderFolder() {
   }
 }
 
+// 주문 CSV 한 개를 검증, 저장, 롤백, 파일 이동까지 포함해 처리한다.
 function processOrderFile(file) {
   let parsedCsv = null;
   let historyContext = null;
@@ -38,10 +40,12 @@ function processOrderFile(file) {
   try {
     checkDuplicateFile(file);
 
+    // 주문 흐름은 파싱 후 헤더를 먼저 검증하고, 그 다음 이력을 남긴다.
     parsedCsv = parseOrderCsv(file);
     validateCsv(parsedCsv);
     historyContext = startOrderFileHistory_(file, parsedCsv.rows.length);
 
+    // 행 단위 오류는 모두 오류 시트에 남긴 뒤 파일 전체를 실패 처리한다.
     const rowValidation = validateOrderRows(parsedCsv.rows);
     if (!rowValidation.valid) {
       errorCount = rowValidation.errors.length;
@@ -60,6 +64,7 @@ function processOrderFile(file) {
 
     checkDuplicateOrderItems(parsedCsv.rows);
 
+    // 주문/주문상품은 별도 시트에 저장하므로, 부분 실패를 대비해 시작 행을 기억한다.
     const groupedOrders = groupOrdersByOrderNumber(parsedCsv.rows);
     const importedOrders = importOrders(file, groupedOrders);
     rollbackContext.orderStartRow = importedOrders.orderStartRow;
@@ -85,6 +90,7 @@ function processOrderFile(file) {
       orderItems: importedOrderItems.orderItems,
     };
   } catch (error) {
+    // 일부라도 저장된 뒤 실패하면 방금 넣은 행만 되돌리려고 롤백을 시도한다.
     if (rollbackContext.orderRowCount > 0 || rollbackContext.orderItemRowCount > 0) {
       try {
         rollbackImportedRows(rollbackContext);

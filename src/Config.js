@@ -1,3 +1,4 @@
+// 상품 CSV 처리 흐름에서 공통으로 사용하는 폴더, 시트, 트리거 설정이다.
 const CONFIG = Object.freeze({
   folders: {
     input: 'csv_input',
@@ -19,6 +20,7 @@ const CONFIG = Object.freeze({
   triggerMinutes: 5,
 });
 
+// 상품 CSV에서 허용하는 전체 헤더 목록이다.
 const PRODUCT_HEADERS = Object.freeze([
   '상품품목코드',
   '코드',
@@ -46,8 +48,10 @@ const PRODUCT_HEADERS = Object.freeze([
   '박스수량',
 ]);
 
+// 최소한 반드시 들어와야 하는 헤더만 따로 분리한다.
 const REQUIRED_HEADERS = Object.freeze(['상품품목코드', '상품명']);
 
+// 숫자로 변환해서 시트에 넣어야 하는 헤더 목록이다.
 const NUMERIC_HEADERS = Object.freeze([
   '가용재고',
   '발송대기',
@@ -58,6 +62,7 @@ const NUMERIC_HEADERS = Object.freeze([
   '박스수량',
 ]);
 
+// 실제 상품마스터 시트에는 원본 파일 추적용 컬럼을 뒤에 덧붙여 저장한다.
 const PRODUCT_SHEET_HEADERS = Object.freeze([
   ...PRODUCT_HEADERS,
   '원본파일ID',

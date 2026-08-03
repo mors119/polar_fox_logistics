@@ -1,3 +1,4 @@
+// 주문 CSV 처리에 필요한 폴더, 시트, 트리거를 한 번에 준비한다.
 function setupOrderCsvSystem() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -16,6 +17,7 @@ function setupOrderCsvSystem() {
       ORDER_CONFIG.folders.error,
     );
 
+    // 주문 시트는 고정 헤더로 만들고, 공용 시트는 필요한 헤더를 덧붙이는 방식으로 보정한다.
     ensureSheet_(ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
     ensureSheet_(ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
     ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
@@ -36,6 +38,7 @@ function setupOrderCsvSystem() {
   }
 }
 
+// 주문 트리거는 이미 있으면 그대로 두고, 없을 때만 추가한다.
 function ensureOrderTrigger_() {
   const hasTrigger = ScriptApp.getProjectTriggers().some(
     (trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.triggerHandler,
@@ -51,6 +54,7 @@ function ensureOrderTrigger_() {
     .create();
 }
 
+// 공용 오류/이력 시트는 기존 헤더를 보존하면서 필요한 컬럼만 추가한다.
 function ensureSheetContainsHeaders_(sheetName, requiredHeaders) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(sheetName);

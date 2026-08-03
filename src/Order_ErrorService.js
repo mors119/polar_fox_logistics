@@ -1,3 +1,4 @@
+// 주문 처리 중 발생한 오류를 공용 오류 시트 포맷에 맞춰 기록한다.
 function recordImportError(file, stage, error) {
   const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
   const headerMap = getHeaderIndexMap_(sheet);
@@ -18,6 +19,7 @@ function recordImportError(file, stage, error) {
   appendRowsToSheet_(sheet, [row]);
 }
 
+// 주문 파일 처리가 시작되면 이력 시트에 PROCESSING 행을 먼저 만든다.
 function startOrderFileHistory_(file, totalRows) {
   const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
   const headerMap = getHeaderIndexMap_(sheet);
@@ -41,6 +43,7 @@ function startOrderFileHistory_(file, totalRows) {
   };
 }
 
+// 처리 완료 후에는 시작 이력 행을 찾아 결과 값으로 갱신한다.
 function finalizeOrderFileHistory_(file, context) {
   const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
   const headerMap = getHeaderIndexMap_(sheet);
@@ -61,6 +64,7 @@ function finalizeOrderFileHistory_(file, context) {
   setSheetCellByHeader_(sheet, rowNumber, headerMap, '메시지', context.message);
 }
 
+// 파일ID로 기존 이력 행 위치를 찾는다.
 function findHistoryRowByFileId_(sheet, fileId) {
   const headerMap = getHeaderIndexMap_(sheet);
   const fileIdColumn = headerMap['파일ID'];
@@ -79,6 +83,7 @@ function findHistoryRowByFileId_(sheet, fileId) {
   return 0;
 }
 
+// 헤더명 기준으로 행 배열의 적절한 위치에 값을 채운다.
 function setMappedCell_(row, headerMap, headerName, value) {
   const columnIndex = headerMap[headerName];
   if (columnIndex) {
@@ -86,6 +91,7 @@ function setMappedCell_(row, headerMap, headerName, value) {
   }
 }
 
+// 이미 존재하는 이력 행은 헤더명을 기준으로 필요한 셀만 갱신한다.
 function setSheetCellByHeader_(sheet, rowNumber, headerMap, headerName, value) {
   const columnIndex = headerMap[headerName];
   if (columnIndex) {

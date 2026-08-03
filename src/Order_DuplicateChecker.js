@@ -1,3 +1,4 @@
+// 같은 파일이 SUCCESS로 처리된 이력이 있으면 재처리하지 않는다.
 function checkDuplicateFile(file) {
   const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
   const records = getSheetRecords_(sheet);
@@ -17,6 +18,7 @@ function checkDuplicateFile(file) {
   }
 }
 
+// 품목별 주문번호는 파일 내부와 기존 시트 양쪽에서 모두 중복을 막는다.
 function checkDuplicateOrderItems(rows) {
   const seen = new Set();
   const duplicatesInFile = [];

@@ -1,3 +1,4 @@
+// 상품 CSV 처리에 필요한 폴더, 시트, 트리거를 한 번에 준비한다.
 function setupSystem() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -10,6 +11,7 @@ function setupSystem() {
     );
     const error = getOrCreateFolder_(CONFIG.properties.errorFolderId, CONFIG.folders.error);
 
+    // 상품 흐름은 초기화 시점에 필요한 시트 헤더를 강제로 맞춘다.
     ensureSheet_(CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
     ensureSheet_(CONFIG.sheets.errors, [
       '오류ID',
@@ -51,6 +53,7 @@ function setupSystem() {
   }
 }
 
+// Script Properties에 저장된 폴더 ID가 있으면 재사용하고, 없으면 새 폴더를 만든다.
 function getOrCreateFolder_(propertyKey, folderName) {
   const properties = PropertiesService.getScriptProperties();
   const savedId = properties.getProperty(propertyKey);
@@ -70,6 +73,7 @@ function getOrCreateFolder_(propertyKey, folderName) {
   return folder;
 }
 
+// 바인드된 스프레드시트에서 시트를 찾고, 없으면 생성한 뒤 헤더를 덮어쓴다.
 function ensureSheet_(sheetName, headers) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(sheetName);
@@ -82,6 +86,7 @@ function ensureSheet_(sheetName, headers) {
   sheet.setFrozenRows(1);
 }
 
+// 상품 CSV 스캔 트리거는 중복 생성되지 않도록 기존 것을 지우고 다시 만든다.
 function ensureTrigger_() {
   ScriptApp.getProjectTriggers()
     .filter((trigger) => trigger.getHandlerFunction() === CONFIG.triggerHandler)

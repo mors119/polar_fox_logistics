@@ -1,3 +1,4 @@
+// Drive 파일 내용을 UTF-8 문자열로 읽고 BOM이 있으면 제거한 뒤 CSV로 파싱한다.
 function parseCsvFile_(file) {
   let text = file.getBlob().getDataAsString('UTF-8');
 
@@ -8,12 +9,14 @@ function parseCsvFile_(file) {
   return Utilities.parseCsv(text);
 }
 
+// 헤더 비교 전에는 공백과 BOM을 제거해서 비교 기준을 통일한다.
 function normalizeHeader_(value) {
   return String(value || '')
     .replace(/^\uFEFF/, '')
     .trim();
 }
 
+// 헤더는 중복, 필수 누락, 미지원 컬럼 순서로 검사한다.
 function validateHeaders_(headers) {
   const duplicateHeaders = findDuplicates_(headers);
   if (duplicateHeaders.length > 0) {
@@ -39,6 +42,7 @@ function validateHeaders_(headers) {
   }
 }
 
+// 한 줄씩 객체로 바꿔두면 이후 검증과 적재 단계에서 헤더명으로 접근할 수 있다.
 function mapRowsToObjects_(headers, rows) {
   return rows.map((row, index) => {
     const result = { __rowNumber: index + 2 };
@@ -51,6 +55,7 @@ function mapRowsToObjects_(headers, rows) {
   });
 }
 
+// 상품 행은 필수값, 파일 내부 중복, 숫자 형식, 날짜 형식을 모두 확인한다.
 function validateProductRows_(rows) {
   const errors = [];
   const seenCodes = new Set();
@@ -121,11 +126,13 @@ function validateProductRows_(rows) {
   };
 }
 
+// 유효기간은 단순 포맷만 먼저 검증하고 실제 Date 변환은 저장 직전에 한다.
 function isDateText_(value) {
   const text = String(value || '').trim();
   return /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(text);
 }
 
+// 중복 헤더 탐지에 재사용하는 범용 유틸 함수다.
 function findDuplicates_(values) {
   const seen = new Set();
   const duplicates = new Set();

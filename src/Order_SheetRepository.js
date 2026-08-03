@@ -1,3 +1,4 @@
+// 주문번호 기준으로 묶어두면 주문 시트는 한 주문당 한 번만 저장할 수 있다.
 function groupOrdersByOrderNumber(rows) {
   const grouped = {};
 
@@ -12,6 +13,7 @@ function groupOrdersByOrderNumber(rows) {
   return grouped;
 }
 
+// 주문 시트에는 주문 단위 정보만 저장하고, 기존 주문번호는 건너뛴다.
 function importOrders(file, groupedOrders) {
   const sheet = getSheet_(ORDER_CONFIG.sheets.orders);
   const existingOrderNumbers = getExistingValueSet_(sheet, '주문번호');
@@ -59,6 +61,7 @@ function importOrders(file, groupedOrders) {
   };
 }
 
+// 주문상품 시트에는 CSV의 각 행을 그대로 품목 단위로 저장한다.
 function importOrderItems(file, rows) {
   const sheet = getSheet_(ORDER_CONFIG.sheets.orderItems);
   const now = new Date();
@@ -92,6 +95,7 @@ function importOrderItems(file, rows) {
   };
 }
 
+// 주문 또는 주문상품 중 일부만 들어간 경우를 대비해 방금 넣은 범위만 삭제한다.
 function rollbackImportedRows(context) {
   const orderItemSheet = getSheet_(ORDER_CONFIG.sheets.orderItems);
   const orderSheet = getSheet_(ORDER_CONFIG.sheets.orders);
@@ -105,6 +109,7 @@ function rollbackImportedRows(context) {
   }
 }
 
+// 빈 배열이면 아무 작업도 하지 않고, 아니면 현재 마지막 행 아래에 일괄 추가한다.
 function appendRowsToSheet_(sheet, values) {
   if (!values || values.length === 0) {
     return {
@@ -122,6 +127,7 @@ function appendRowsToSheet_(sheet, values) {
   };
 }
 
+// 특정 헤더 컬럼의 기존 값들을 Set으로 만들어 중복 검사에 재사용한다.
 function getExistingValueSet_(sheet, headerName) {
   const headerMap = getHeaderIndexMap_(sheet);
   const columnIndex = headerMap[headerName];
@@ -142,10 +148,12 @@ function getExistingValueSet_(sheet, headerName) {
   return values;
 }
 
+// 품목별 주문번호 중복 검사용 래퍼 함수다.
 function getExistingOrderItemNumbers_() {
   return getExistingValueSet_(getSheet_(ORDER_CONFIG.sheets.orderItems), '품목별 주문번호');
 }
 
+// 헤더명 -> 컬럼 번호 매핑을 만들어 동적 시트 접근에 사용한다.
 function getHeaderIndexMap_(sheet) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
   const map = {};
@@ -160,6 +168,7 @@ function getHeaderIndexMap_(sheet) {
   return map;
 }
 
+// 시트를 헤더 기반 레코드 배열로 읽어와 검색 로직에서 재사용한다.
 function getSheetRecords_(sheet) {
   const lastRow = sheet.getLastRow();
   const lastColumn = sheet.getLastColumn();
@@ -182,6 +191,7 @@ function getSheetRecords_(sheet) {
   });
 }
 
+// 과거 헤더명 변경에 대응하려고 별칭 배열도 받을 수 있게 만든 조회 함수다.
 function getRecordValueByAliases_(record, aliases) {
   const aliasList = Array.isArray(aliases) ? aliases : [aliases];
 
@@ -195,10 +205,12 @@ function getRecordValueByAliases_(record, aliases) {
   return '';
 }
 
+// 공백 정리까지 포함한 문자열 필드 읽기 함수다.
 function getTrimmedField_(record, fieldName) {
   return String(record[fieldName] ?? '').trim();
 }
 
+// 값이 없으면 빈칸을 유지하고, 값이 있으면 숫자로 바꿔서 반환한다.
 function getNumericFieldOrBlank_(record, fieldName) {
   const rawValue = getTrimmedField_(record, fieldName);
   if (!rawValue) {
@@ -209,6 +221,7 @@ function getNumericFieldOrBlank_(record, fieldName) {
   return numberValue === null ? '' : numberValue;
 }
 
+// 금액류 필드는 쉼표를 제거한 뒤 Number 변환만 수행한다.
 function parseNumberField_(value) {
   const normalized = String(value ?? '')
     .trim()
@@ -221,6 +234,7 @@ function parseNumberField_(value) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+// 수량처럼 정수만 허용하는 값은 별도 파서로 검사한다.
 function parseIntegerField_(value) {
   const normalized = String(value ?? '')
     .trim()

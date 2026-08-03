@@ -1,3 +1,4 @@
+// 주문 CSV는 헤더 존재 여부와 허용 컬럼 범위를 먼저 검증한다.
 function validateCsv(parsedCsv) {
   const headers = Array.isArray(parsedCsv) ? parsedCsv : parsedCsv.headers;
 
@@ -33,6 +34,7 @@ function validateCsv(parsedCsv) {
   }
 }
 
+// 각 행의 필수값, 수량 형식, 주문번호 내부 일관성을 한 번에 검사한다.
 function validateOrderRows(rows) {
   const errors = [];
   const seenOrderItemNumbers = new Set();
@@ -175,6 +177,7 @@ function validateOrderRows(rows) {
       );
     }
 
+    // 같은 주문번호 안에서 헤더 성격 필드는 모두 같은 값이어야 한다.
     if (orderNumber) {
       const snapshot = buildOrderHeaderSnapshot_(row);
       if (!orderSnapshots[orderNumber]) {
@@ -205,6 +208,7 @@ function validateOrderRows(rows) {
   };
 }
 
+// 오류 로그 시트에 바로 쓸 수 있는 표준 형태의 오류 객체를 만든다.
 function buildOrderRowError_(rowNumber, orderNumber, orderItemNumber, code, message) {
   return {
     rowNumber,
@@ -215,6 +219,7 @@ function buildOrderRowError_(rowNumber, orderNumber, orderItemNumber, code, mess
   };
 }
 
+// 같은 주문번호끼리 비교할 필드만 뽑아 스냅샷으로 저장한다.
 function buildOrderHeaderSnapshot_(row) {
   const snapshot = {};
   ORDER_HEADER_CONSISTENCY_FIELDS.forEach((field) => {

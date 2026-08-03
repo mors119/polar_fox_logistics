@@ -1,3 +1,4 @@
+// 상품마스터 시트에 이미 존재하는 상품품목코드가 있는지 확인한다.
 function assertNoDuplicateProductCodes_(products) {
   const sheet = getSheet_(CONFIG.sheets.products);
   const existingCodes = new Set();
@@ -25,6 +26,7 @@ function assertNoDuplicateProductCodes_(products) {
   }
 }
 
+// 검증이 끝난 상품 목록을 시트에 일괄 저장한다.
 function importProducts_(file, products) {
   if (products.length === 0) {
     return 0;
@@ -45,6 +47,7 @@ function importProducts_(file, products) {
   return values.length;
 }
 
+// 숫자와 날짜는 시트에서 후속 활용이 쉽도록 타입을 맞춰 넣는다.
 function convertProductValue_(header, value) {
   if (NUMERIC_HEADERS.includes(header)) {
     return value === '' ? 0 : Number(value.replace(/,/g, ''));
