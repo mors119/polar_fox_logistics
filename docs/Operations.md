@@ -4,11 +4,12 @@
 
 상품과 주문은 각각 별도 초기화가 필요합니다.
 
-1. 스프레드시트에 바인드된 Apps Script 프로젝트 열기
-2. `setupSystem()` 실행
-3. `setupOrderCsvSystem()` 실행
-4. 생성된 폴더와 시트 확인
-5. 샘플 CSV 업로드 후 `scanCsvInputFolder()` 또는 `scanOrderFolder()` 테스트
+1. Google Drive에 상위 작업 폴더 하나 생성
+2. Script Properties에 `ROOT_FOLDER_ID` 저장
+3. `setupSystem()` 실행
+4. `setupOrderCsvSystem()` 실행
+5. 생성된 폴더와 운영 스프레드시트 확인
+6. 샘플 CSV 업로드 후 `scanCsvInputFolder()` 또는 `scanOrderFolder()` 테스트
 
 ## 생성되어야 하는 폴더
 
@@ -26,6 +27,7 @@
 
 ## 생성되어야 하는 시트
 
+- 운영 스프레드시트 1개
 - `상품마스터`
 - `주문`
 - `주문상품`
@@ -43,7 +45,7 @@
 
 - `sample_order.cvs`처럼 확장자를 잘못 올림
 - 주문 파일을 `csv_input`에 넣음
-- standalone Apps Script에서 `setupSystem()` 실행
+- `ROOT_FOLDER_ID`를 넣지 않고 `setupSystem()` 실행
 - `setupOrderCsvSystem()`을 실행하지 않아 주문용 폴더가 아예 없음
 
 ## 처리 결과 확인 위치

@@ -2,7 +2,7 @@
 
 Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive 폴더에서 읽어 Google Sheets에 적재하는 자동화 프로젝트입니다.
 
-이 저장소는 TypeScript 빌드 템플릿이 아니라, `src/` 아래 JavaScript 파일을 그대로 `clasp push` 하는 구조입니다.
+이 저장소는 `src/` 아래 JavaScript 파일을 그대로 `clasp push` 하는 구조입니다.
 
 ## 핵심 기능
 
@@ -12,16 +12,32 @@ Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive 폴더에서 읽�
 - 처리 완료 파일과 오류 파일을 각각 다른 Drive 폴더로 이동
 - 시간 기반 트리거로 자동 실행
 
-## 반드시 알아야 할 전제
+## 실행 방식
 
-- 이 프로젝트는 **Google Sheets 바인드(bound) Apps Script** 기준으로 작성되어 있습니다.
-- `setupSystem()`과 `setupOrderCsvSystem()`은 `SpreadsheetApp.getActiveSpreadsheet()`를 사용하므로,
-  반드시 **스프레드시트에 연결된 Apps Script 프로젝트**에서 실행해야 합니다.
-- standalone Apps Script 프로젝트에서 실행하면 `getActiveSpreadsheet()`가 `null`이라 실패합니다.
+- 이 프로젝트는 Google Sheets 바인드 프로젝트가 아니어도 됩니다.
+- standalone Apps Script 프로젝트에서도 실행할 수 있습니다.
+- 단, 먼저 Script Properties에 `ROOT_FOLDER_ID`를 넣어야 합니다.
+- 초기화 함수가 이 상위 폴더 아래에 작업 폴더와 운영 스프레드시트를 자동 생성합니다.
 
-## 준비 폴더와 시트
+## 시작 전 준비물
 
-초기화 함수를 실행하면 아래 폴더와 시트가 준비됩니다.
+1. Google Drive에 상위 작업 폴더 하나 생성
+2. 해당 폴더 ID 복사
+3. Apps Script의 Script Properties에 아래 값 저장
+
+```text
+ROOT_FOLDER_ID=상위_작업_폴더_ID
+```
+
+## 자동으로 생성되는 것
+
+초기화 함수를 실행하면 `ROOT_FOLDER_ID` 아래에 아래 항목이 자동 생성되거나 재사용됩니다.
+
+### 공통
+
+- 운영 스프레드시트 1개
+- `오류목록`
+- `파일처리이력`
 
 ### 상품 CSV용
 
@@ -36,8 +52,6 @@ Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive 폴더에서 읽�
 생성/사용 시트:
 
 - `상품마스터`
-- `오류목록`
-- `파일처리이력`
 
 트리거:
 
@@ -57,8 +71,6 @@ Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive 폴더에서 읽�
 
 - `주문`
 - `주문상품`
-- `오류목록`
-- `파일처리이력`
 
 트리거:
 
@@ -79,19 +91,39 @@ Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive 폴더에서 읽�
 
 ### 상품 CSV
 
-1. `setupSystem()` 실행
-2. 생성된 `csv_input` 폴더에 `.csv` 파일 업로드
-3. 트리거를 기다리거나 `scanCsvInputFolder()` 수동 실행
-4. 성공 시 `상품마스터`에 적재 후 `csv_processed` 이동
-5. 실패 시 `오류목록`, `파일처리이력` 기록 후 `csv_error` 이동
+1. Script Properties에 `ROOT_FOLDER_ID` 설정
+2. `setupSystem()` 실행
+3. 반환된 `spreadsheetUrl` 또는 `OPERATIONS_SPREADSHEET_ID`로 운영 스프레드시트 확인
+4. 생성된 `csv_input` 폴더에 `.csv` 파일 업로드
+5. 트리거를 기다리거나 `scanCsvInputFolder()` 수동 실행
+6. 성공 시 `상품마스터`에 적재 후 `csv_processed` 이동
+7. 실패 시 `오류목록`, `파일처리이력` 기록 후 `csv_error` 이동
 
 ### 주문 CSV
 
-1. `setupOrderCsvSystem()` 실행
-2. 생성된 `order_csv_input` 폴더에 `.csv` 파일 업로드
-3. 트리거를 기다리거나 `scanOrderFolder()` 수동 실행
-4. 성공 시 `주문`, `주문상품` 시트에 적재 후 `order_csv_processed` 이동
-5. 실패 시 `오류목록`, `파일처리이력` 기록 후 `order_csv_error` 이동
+1. Script Properties에 `ROOT_FOLDER_ID` 설정
+2. `setupOrderCsvSystem()` 실행
+3. 반환된 `spreadsheetUrl` 또는 `OPERATIONS_SPREADSHEET_ID`로 운영 스프레드시트 확인
+4. 생성된 `order_csv_input` 폴더에 `.csv` 파일 업로드
+5. 트리거를 기다리거나 `scanOrderFolder()` 수동 실행
+6. 성공 시 `주문`, `주문상품` 시트에 적재 후 `order_csv_processed` 이동
+7. 실패 시 `오류목록`, `파일처리이력` 기록 후 `order_csv_error` 이동
+
+## Script Properties
+
+처음에는 아래 값만 직접 준비하면 됩니다.
+
+- `ROOT_FOLDER_ID`: 작업 폴더와 운영 스프레드시트를 생성할 상위 Drive 폴더 ID
+
+초기화 후에는 아래 값들이 자동으로 채워집니다.
+
+- `OPERATIONS_SPREADSHEET_ID`
+- `CSV_INPUT_FOLDER_ID`
+- `CSV_PROCESSED_FOLDER_ID`
+- `CSV_ERROR_FOLDER_ID`
+- `ORDER_CSV_INPUT_FOLDER_ID`
+- `ORDER_CSV_PROCESSED_FOLDER_ID`
+- `ORDER_CSV_ERROR_FOLDER_ID`
 
 ## 로컬 개발
 
@@ -141,8 +173,8 @@ npm run push
 
 ### 상품 흐름
 
-- `src/Config.js`: 상품 폴더/시트/헤더 설정
-- `src/Setup.js`: 상품 폴더/시트/트리거 초기화
+- `src/Config.js`: 상품 폴더/시트/속성 키 설정
+- `src/Setup.js`: 상품 폴더/운영 스프레드시트/트리거 초기화
 - `src/Main.js`: 상품 CSV 처리 메인 흐름
 - `src/CsvVaildation.js`: 상품 CSV 파싱/헤더/행 검증
 - `src/Productimport.js`: 상품마스터 적재와 중복 코드 검사

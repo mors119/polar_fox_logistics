@@ -4,14 +4,15 @@
 
 - Apps Script 소스는 `src/` 아래 JavaScript 파일입니다.
 - `clasp push` 시 빌드 단계 없이 `src/`가 그대로 반영됩니다.
-- 초기화 함수는 모두 **바인드된 Google Sheets** 환경에서 실행해야 합니다.
+- standalone Apps Script 프로젝트에서도 실행할 수 있습니다.
+- 다만 초기화 전에 Script Properties의 `ROOT_FOLDER_ID`를 먼저 설정해야 합니다.
 
 ## 로컬 준비
 
 1. `npm install`
 2. `.clasp.json.example` 기반으로 `.clasp.json` 생성
 3. `npx clasp login`
-4. 대상 Apps Script 프로젝트가 Google Sheets 바인드 프로젝트인지 확인
+4. Apps Script Script Properties에 `ROOT_FOLDER_ID` 설정
 
 ## 개발 명령
 

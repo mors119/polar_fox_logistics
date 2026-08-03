@@ -4,6 +4,8 @@ function setupOrderCsvSystem() {
   lock.waitLock(30000);
 
   try {
+    const rootFolder = getRootFolder_();
+    const spreadsheet = getOrCreateSpreadsheet_();
     const input = getOrCreateFolder_(
       ORDER_CONFIG.properties.inputFolderId,
       ORDER_CONFIG.folders.input,
@@ -18,17 +20,19 @@ function setupOrderCsvSystem() {
     );
 
     // 주문 시트는 고정 헤더로 만들고, 공용 시트는 필요한 헤더를 덧붙이는 방식으로 보정한다.
-    ensureSheet_(ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
-    ensureSheet_(ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
-    ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
-    ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
+    ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
+    ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+    ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     ensureOrderTrigger_();
 
     const result = {
+      rootFolderUrl: rootFolder.getUrl(),
+      spreadsheetId: spreadsheet.getId(),
       inputFolderUrl: input.getUrl(),
       processedFolderUrl: processed.getUrl(),
       errorFolderUrl: error.getUrl(),
-      spreadsheetUrl: SpreadsheetApp.getActiveSpreadsheet().getUrl(),
+      spreadsheetUrl: spreadsheet.getUrl(),
     };
 
     console.log(JSON.stringify(result, null, 2));
@@ -55,8 +59,7 @@ function ensureOrderTrigger_() {
 }
 
 // 공용 오류/이력 시트는 기존 헤더를 보존하면서 필요한 컬럼만 추가한다.
-function ensureSheetContainsHeaders_(sheetName, requiredHeaders) {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+function ensureSheetContainsHeaders_(spreadsheet, sheetName, requiredHeaders) {
   let sheet = spreadsheet.getSheetByName(sheetName);
 
   if (!sheet) {

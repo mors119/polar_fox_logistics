@@ -4,6 +4,8 @@ function setupSystem() {
   lock.waitLock(30000);
 
   try {
+    const rootFolder = getRootFolder_();
+    const spreadsheet = getOrCreateSpreadsheet_();
     const input = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
     const processed = getOrCreateFolder_(
       CONFIG.properties.processedFolderId,
@@ -12,8 +14,8 @@ function setupSystem() {
     const error = getOrCreateFolder_(CONFIG.properties.errorFolderId, CONFIG.folders.error);
 
     // 상품 흐름은 초기화 시점에 필요한 시트 헤더를 강제로 맞춘다.
-    ensureSheet_(CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
-    ensureSheet_(CONFIG.sheets.errors, [
+    ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.errors, [
       '오류ID',
       '발생일시',
       '파일ID',
@@ -25,7 +27,7 @@ function setupSystem() {
       '오류메시지',
       '처리상태',
     ]);
-    ensureSheet_(CONFIG.sheets.history, [
+    ensureSheet_(spreadsheet, CONFIG.sheets.history, [
       '파일ID',
       '파일명',
       '처리상태',
@@ -40,10 +42,12 @@ function setupSystem() {
     ensureTrigger_();
 
     const result = {
+      rootFolderUrl: rootFolder.getUrl(),
+      spreadsheetId: spreadsheet.getId(),
       inputFolderUrl: input.getUrl(),
       processedFolderUrl: processed.getUrl(),
       errorFolderUrl: error.getUrl(),
-      spreadsheetUrl: SpreadsheetApp.getActiveSpreadsheet().getUrl(),
+      spreadsheetUrl: spreadsheet.getUrl(),
     };
 
     console.log(JSON.stringify(result, null, 2));
@@ -53,7 +57,39 @@ function setupSystem() {
   }
 }
 
-// Script Properties에 저장된 폴더 ID가 있으면 재사용하고, 없으면 새 폴더를 만든다.
+// 모든 작업 폴더와 운영 스프레드시트를 담아둘 상위 Drive 폴더를 가져온다.
+function getRootFolder_() {
+  const rootFolderId = PropertiesService.getScriptProperties().getProperty(
+    CONFIG.properties.rootFolderId,
+  );
+
+  if (!rootFolderId) {
+    throw new Error('ROOT_FOLDER_ID script property를 먼저 설정하세요.');
+  }
+
+  return DriveApp.getFolderById(rootFolderId);
+}
+
+// 운영용 스프레드시트를 가져오거나, 없으면 새로 만든 뒤 상위 폴더 아래로 옮긴다.
+function getOrCreateSpreadsheet_() {
+  const properties = PropertiesService.getScriptProperties();
+  const savedId = properties.getProperty(CONFIG.properties.spreadsheetId);
+
+  if (savedId) {
+    try {
+      return SpreadsheetApp.openById(savedId);
+    } catch (error) {
+      console.warn(`기존 스프레드시트 ID를 사용할 수 없습니다: ${CONFIG.properties.spreadsheetId}`);
+    }
+  }
+
+  const spreadsheet = SpreadsheetApp.create(CONFIG.spreadsheetName);
+  moveFileToRootFolder_(DriveApp.getFileById(spreadsheet.getId()));
+  properties.setProperty(CONFIG.properties.spreadsheetId, spreadsheet.getId());
+  return spreadsheet;
+}
+
+// Script Properties에 저장된 폴더 ID가 있으면 재사용하고, 없으면 상위 폴더 아래에 새 폴더를 만든다.
 function getOrCreateFolder_(propertyKey, folderName) {
   const properties = PropertiesService.getScriptProperties();
   const savedId = properties.getProperty(propertyKey);
@@ -66,16 +102,28 @@ function getOrCreateFolder_(propertyKey, folderName) {
     }
   }
 
-  const folders = DriveApp.getFoldersByName(folderName);
-  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+  const rootFolder = getRootFolder_();
+  const folders = rootFolder.getFoldersByName(folderName);
+  const folder = folders.hasNext() ? folders.next() : rootFolder.createFolder(folderName);
 
   properties.setProperty(propertyKey, folder.getId());
   return folder;
 }
 
-// 바인드된 스프레드시트에서 시트를 찾고, 없으면 생성한 뒤 헤더를 덮어쓴다.
-function ensureSheet_(sheetName, headers) {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+// 새로 만든 파일이 있으면 지정된 상위 폴더 아래로 옮기고, 내 Drive 루트에서는 제거한다.
+function moveFileToRootFolder_(file) {
+  const rootFolder = getRootFolder_();
+  rootFolder.addFile(file);
+
+  try {
+    DriveApp.getRootFolder().removeFile(file);
+  } catch (error) {
+    console.warn(`루트 폴더에서 파일 제거를 건너뜁니다: ${file.getName()}`);
+  }
+}
+
+// 운영 스프레드시트에서 시트를 찾고, 없으면 생성한 뒤 헤더를 덮어쓴다.
+function ensureSheet_(spreadsheet, sheetName, headers) {
   let sheet = spreadsheet.getSheetByName(sheetName);
 
   if (!sheet) {
@@ -84,6 +132,19 @@ function ensureSheet_(sheetName, headers) {
 
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.setFrozenRows(1);
+}
+
+// 이후 모든 시트 접근은 저장된 운영 스프레드시트 ID 기준으로 수행한다.
+function getSpreadsheet_() {
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty(
+    CONFIG.properties.spreadsheetId,
+  );
+
+  if (!spreadsheetId) {
+    throw new Error('OPERATIONS_SPREADSHEET_ID가 없습니다. setupSystem()을 먼저 실행하세요.');
+  }
+
+  return SpreadsheetApp.openById(spreadsheetId);
 }
 
 // 상품 CSV 스캔 트리거는 중복 생성되지 않도록 기존 것을 지우고 다시 만든다.

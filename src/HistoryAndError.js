@@ -56,9 +56,9 @@ function moveFile_(file, propertyKey) {
   file.moveTo(getConfiguredFolder_(propertyKey));
 }
 
-// 현재 바인드된 스프레드시트에서 시트를 가져오는 공통 함수다.
+// 저장된 운영 스프레드시트 ID 기준으로 시트를 가져오는 공통 함수다.
 function getSheet_(sheetName) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const sheet = getSpreadsheet_().getSheetByName(sheetName);
 
   if (!sheet) {
     throw new Error(`시트가 없습니다: ${sheetName}`);

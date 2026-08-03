@@ -19,7 +19,8 @@ npm run push
 - `.clasp.json`의 `rootDir`가 `src`인지
 - `scriptId`가 올바른 Apps Script 프로젝트를 가리키는지
 - `npx clasp login`이 완료되었는지
-- 대상 프로젝트가 필요한 권한과 바인드 환경을 갖추었는지
+- 대상 프로젝트가 필요한 권한을 갖추었는지
+- Script Properties의 `ROOT_FOLDER_ID`가 설정되어 있는지
 
 ## GitHub Actions 배포
 

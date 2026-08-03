@@ -1,6 +1,10 @@
 // 같은 파일이 SUCCESS로 처리된 이력이 있으면 재처리하지 않는다.
 function checkDuplicateFile(file) {
-  const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+  const sheet = ensureSheetContainsHeaders_(
+    getSpreadsheet_(),
+    ORDER_CONFIG.sheets.history,
+    FILE_HISTORY_HEADERS,
+  );
   const records = getSheetRecords_(sheet);
 
   const isSuccess = records.some(

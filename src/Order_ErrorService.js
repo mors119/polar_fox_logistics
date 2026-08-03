@@ -1,6 +1,10 @@
 // 주문 처리 중 발생한 오류를 공용 오류 시트 포맷에 맞춰 기록한다.
 function recordImportError(file, stage, error) {
-  const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+  const sheet = ensureSheetContainsHeaders_(
+    getSpreadsheet_(),
+    ORDER_CONFIG.sheets.errors,
+    ERROR_SHEET_HEADERS,
+  );
   const headerMap = getHeaderIndexMap_(sheet);
   const row = new Array(sheet.getLastColumn()).fill('');
 
@@ -21,7 +25,11 @@ function recordImportError(file, stage, error) {
 
 // 주문 파일 처리가 시작되면 이력 시트에 PROCESSING 행을 먼저 만든다.
 function startOrderFileHistory_(file, totalRows) {
-  const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+  const sheet = ensureSheetContainsHeaders_(
+    getSpreadsheet_(),
+    ORDER_CONFIG.sheets.history,
+    FILE_HISTORY_HEADERS,
+  );
   const headerMap = getHeaderIndexMap_(sheet);
   const row = new Array(sheet.getLastColumn()).fill('');
   const startedAt = new Date();
@@ -45,7 +53,11 @@ function startOrderFileHistory_(file, totalRows) {
 
 // 처리 완료 후에는 시작 이력 행을 찾아 결과 값으로 갱신한다.
 function finalizeOrderFileHistory_(file, context) {
-  const sheet = ensureSheetContainsHeaders_(ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+  const sheet = ensureSheetContainsHeaders_(
+    getSpreadsheet_(),
+    ORDER_CONFIG.sheets.history,
+    FILE_HISTORY_HEADERS,
+  );
   const headerMap = getHeaderIndexMap_(sheet);
   const rowNumber = context.rowNumber || findHistoryRowByFileId_(sheet, file.getId());
 

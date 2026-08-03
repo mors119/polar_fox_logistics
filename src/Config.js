@@ -12,10 +12,13 @@ const CONFIG = Object.freeze({
   },
 
   properties: {
+    rootFolderId: 'ROOT_FOLDER_ID',
+    spreadsheetId: 'OPERATIONS_SPREADSHEET_ID',
     inputFolderId: 'CSV_INPUT_FOLDER_ID',
     processedFolderId: 'CSV_PROCESSED_FOLDER_ID',
     errorFolderId: 'CSV_ERROR_FOLDER_ID',
   },
+  spreadsheetName: 'polar_fox_logistics',
   triggerHandler: 'scanCsvInputFolder',
   triggerMinutes: 5,
 });
