@@ -12,9 +12,9 @@ function assertFileNotProcessed_(file) {
 
   if (ids.includes(file.getId())) {
     throw appError_(
-      "DUPLICATE_FILE",
+      'DUPLICATE_FILE',
       `이미 처리된 파일입니다: ${file.getName()}`,
-      "FILE_DUPLICATE_CHECK"
+      'FILE_DUPLICATE_CHECK',
     );
   }
 }
@@ -29,7 +29,7 @@ function appendHistory_(file, data) {
     data.errorCount,
     data.startedAt,
     new Date(),
-    data.message
+    data.message,
   ]);
 }
 
@@ -37,14 +37,14 @@ function appendErrorLog_(file, stage, error) {
   getSheet_(CONFIG.sheets.errors).appendRow([
     Utilities.getUuid(),
     new Date(),
-    file ? file.getId() : "",
-    file ? file.getName() : "",
+    file ? file.getId() : '',
+    file ? file.getName() : '',
     stage,
-    error.rowNumber || "",
-    error.productCode || "",
-    error.code || "UNKNOWN",
-    error.message || "",
-    "미처리"
+    error.rowNumber || '',
+    error.productCode || '',
+    error.code || 'UNKNOWN',
+    error.message || '',
+    '미처리',
   ]);
 }
 
@@ -53,9 +53,7 @@ function moveFile_(file, propertyKey) {
 }
 
 function getSheet_(sheetName) {
-  const sheet = SpreadsheetApp
-    .getActiveSpreadsheet()
-    .getSheetByName(sheetName);
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
 
   if (!sheet) {
     throw new Error(`시트가 없습니다: ${sheetName}`);

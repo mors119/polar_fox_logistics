@@ -5,15 +5,15 @@ function setupOrderCsvSystem() {
   try {
     const input = getOrCreateFolder_(
       ORDER_CONFIG.properties.inputFolderId,
-      ORDER_CONFIG.folders.input
+      ORDER_CONFIG.folders.input,
     );
     const processed = getOrCreateFolder_(
       ORDER_CONFIG.properties.processedFolderId,
-      ORDER_CONFIG.folders.processed
+      ORDER_CONFIG.folders.processed,
     );
     const error = getOrCreateFolder_(
       ORDER_CONFIG.properties.errorFolderId,
-      ORDER_CONFIG.folders.error
+      ORDER_CONFIG.folders.error,
     );
 
     ensureSheet_(ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
@@ -26,7 +26,7 @@ function setupOrderCsvSystem() {
       inputFolderUrl: input.getUrl(),
       processedFolderUrl: processed.getUrl(),
       errorFolderUrl: error.getUrl(),
-      spreadsheetUrl: SpreadsheetApp.getActiveSpreadsheet().getUrl()
+      spreadsheetUrl: SpreadsheetApp.getActiveSpreadsheet().getUrl(),
     };
 
     console.log(JSON.stringify(result, null, 2));
@@ -37,8 +37,8 @@ function setupOrderCsvSystem() {
 }
 
 function ensureOrderTrigger_() {
-  const hasTrigger = ScriptApp.getProjectTriggers().some(trigger =>
-    trigger.getHandlerFunction() === ORDER_CONFIG.triggerHandler
+  const hasTrigger = ScriptApp.getProjectTriggers().some(
+    (trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.triggerHandler,
   );
 
   if (hasTrigger) {
@@ -60,12 +60,13 @@ function ensureSheetContainsHeaders_(sheetName, requiredHeaders) {
   }
 
   const lastColumn = Math.max(sheet.getLastColumn(), requiredHeaders.length);
-  const existingHeaders = lastColumn > 0
-    ? sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].map(normalizeHeader_)
-    : [];
+  const existingHeaders =
+    lastColumn > 0
+      ? sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].map(normalizeHeader_)
+      : [];
 
   const mergedHeaders = existingHeaders.slice();
-  requiredHeaders.forEach(header => {
+  requiredHeaders.forEach((header) => {
     if (!mergedHeaders.includes(header)) {
       mergedHeaders.push(header);
     }
