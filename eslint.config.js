@@ -1,6 +1,5 @@
 import js from '@eslint/js';
 import globals from 'globals';
-import tseslint from 'typescript-eslint';
 
 const googleAppsScriptGlobals = {
   CalendarApp: 'readonly',
@@ -8,19 +7,22 @@ const googleAppsScriptGlobals = {
   DriveApp: 'readonly',
   GmailApp: 'readonly',
   HtmlService: 'readonly',
+  LockService: 'readonly',
   Logger: 'readonly',
   MimeType: 'readonly',
   PropertiesService: 'readonly',
+  ScriptApp: 'readonly',
   SpreadsheetApp: 'readonly',
   UrlFetchApp: 'readonly',
+  Utilities: 'readonly',
 };
 
-export default tseslint.config(
+export default [
   {
     ignores: ['coverage/**', 'dist/**', 'node_modules/**'],
   },
   {
-    files: ['**/*.js'],
+    files: ['*.js', 'scripts/**/*.js', 'scripts/**/*.mjs'],
     ...js.configs.recommended,
     languageOptions: {
       globals: {
@@ -30,32 +32,16 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts'],
-    extends: [...tseslint.configs.recommendedTypeChecked],
+    files: ['src/**/*.js'],
+    ...js.configs.recommended,
     languageOptions: {
-      parserOptions: {
-        project: './tsconfig.json',
-        tsconfigRootDir: import.meta.dirname,
-      },
       globals: {
-        ...globals.node,
         ...globals.es2021,
         ...googleAppsScriptGlobals,
+        console: 'readonly',
       },
     },
     rules: {
-      '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
-      '@typescript-eslint/explicit-function-return-type': 'error',
-      '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': 'error',
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-        },
-      ],
       'no-restricted-syntax': [
         'error',
         {
@@ -65,4 +51,4 @@ export default tseslint.config(
       ],
     },
   },
-);
+];
