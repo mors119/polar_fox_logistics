@@ -5,7 +5,7 @@
 - Apps Script 소스는 `src/` 아래 JavaScript 파일입니다.
 - `clasp push` 시 빌드 단계 없이 `src/`가 그대로 반영됩니다.
 - standalone Apps Script 프로젝트에서도 실행할 수 있습니다.
-- 다만 초기화 전에 Script Properties의 `ROOT_FOLDER_ID`를 먼저 설정해야 합니다.
+- 초기화 전에 Script Properties의 `ROOT_FOLDER_ID`를 먼저 설정해야 합니다.
 
 ## 로컬 준비
 
@@ -48,5 +48,5 @@
 - 상품 CSV는 `csv_input`만 감시하는지
 - 주문 CSV는 `order_csv_input`만 감시하는지
 - 파일 확장자가 `.csv`인지
-- 오류 발생 시 오류 폴더와 오류 시트가 같이 갱신되는지
-- 성공 시 처리완료 폴더로 이동하는지
+- 오류 발생 시 오류 시트와 이력 시트가 같이 갱신되는지
+- 처리 후 입력 파일이 휴지통으로 이동하는지

@@ -74,7 +74,6 @@ function processOrderFile(file) {
     rollbackContext.orderItemStartRow = importedOrderItems.orderItemStartRow;
     rollbackContext.orderItemRowCount = importedOrderItems.orderItemRowCount;
 
-    moveProcessedFile(file);
     finalizeOrderFileHistory_(file, {
       rowNumber: historyContext.rowNumber,
       status: 'SUCCESS',
@@ -84,6 +83,7 @@ function processOrderFile(file) {
       errorCount: 0,
       message: '주문 CSV 등록 완료',
     });
+    trashOrderFile_(file);
 
     return {
       orders: importedOrders.orders,
@@ -118,12 +118,6 @@ function processOrderFile(file) {
       errorCount += 1;
     }
 
-    try {
-      moveErrorFile(file);
-    } catch (moveError) {
-      console.error('오류 파일 이동 실패', moveError);
-    }
-
     finalizeOrderFileHistory_(file, {
       rowNumber: historyContext ? historyContext.rowNumber : 0,
       status: 'FAILED',
@@ -133,6 +127,7 @@ function processOrderFile(file) {
       errorCount: errorCount || 1,
       message: error.message || String(error),
     });
+    trashOrderFile_(file);
 
     console.error(`주문 파일 처리 실패: ${file.getName()}`, error);
     return {

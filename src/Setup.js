@@ -7,11 +7,6 @@ function setupSystem() {
     const rootFolder = getRootFolder_();
     const spreadsheet = getOrCreateSpreadsheet_();
     const input = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
-    const processed = getOrCreateFolder_(
-      CONFIG.properties.processedFolderId,
-      CONFIG.folders.processed,
-    );
-    const error = getOrCreateFolder_(CONFIG.properties.errorFolderId, CONFIG.folders.error);
 
     // 상품 흐름은 초기화 시점에 필요한 시트 헤더를 강제로 맞춘다.
     ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
@@ -45,8 +40,6 @@ function setupSystem() {
       rootFolderUrl: rootFolder.getUrl(),
       spreadsheetId: spreadsheet.getId(),
       inputFolderUrl: input.getUrl(),
-      processedFolderUrl: processed.getUrl(),
-      errorFolderUrl: error.getUrl(),
       spreadsheetUrl: spreadsheet.getUrl(),
     };
 

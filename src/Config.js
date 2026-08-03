@@ -2,8 +2,6 @@
 const CONFIG = Object.freeze({
   folders: {
     input: 'csv_input',
-    processed: 'csv_processed',
-    error: 'csv_error',
   },
   sheets: {
     products: '상품마스터',
@@ -15,8 +13,6 @@ const CONFIG = Object.freeze({
     rootFolderId: 'ROOT_FOLDER_ID',
     spreadsheetId: 'OPERATIONS_SPREADSHEET_ID',
     inputFolderId: 'CSV_INPUT_FOLDER_ID',
-    processedFolderId: 'CSV_PROCESSED_FOLDER_ID',
-    errorFolderId: 'CSV_ERROR_FOLDER_ID',
   },
   spreadsheetName: 'polar_fox_logistics',
   triggerHandler: 'scanCsvInputFolder',

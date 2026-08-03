@@ -10,14 +10,6 @@ function setupOrderCsvSystem() {
       ORDER_CONFIG.properties.inputFolderId,
       ORDER_CONFIG.folders.input,
     );
-    const processed = getOrCreateFolder_(
-      ORDER_CONFIG.properties.processedFolderId,
-      ORDER_CONFIG.folders.processed,
-    );
-    const error = getOrCreateFolder_(
-      ORDER_CONFIG.properties.errorFolderId,
-      ORDER_CONFIG.folders.error,
-    );
 
     // 주문 시트는 고정 헤더로 만들고, 공용 시트는 필요한 헤더를 덧붙이는 방식으로 보정한다.
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
@@ -30,8 +22,6 @@ function setupOrderCsvSystem() {
       rootFolderUrl: rootFolder.getUrl(),
       spreadsheetId: spreadsheet.getId(),
       inputFolderUrl: input.getUrl(),
-      processedFolderUrl: processed.getUrl(),
-      errorFolderUrl: error.getUrl(),
       spreadsheetUrl: spreadsheet.getUrl(),
     };
 

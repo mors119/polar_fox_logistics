@@ -1,6 +1,6 @@
 # polar_fox_logistics
 
-Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive 폴더에서 읽어 Google Sheets에 적재하는 자동화 프로젝트입니다.
+Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive의 입력 폴더에서 읽어 Google Sheets에 적재하는 자동화 프로젝트입니다.
 
 이 저장소는 `src/` 아래 JavaScript 파일을 그대로 `clasp push` 하는 구조입니다.
 
@@ -9,15 +9,14 @@ Google Apps Script로 상품 CSV와 주문 CSV를 Google Drive 폴더에서 읽�
 - 상품 CSV를 읽어 `상품마스터` 시트에 적재
 - 주문 CSV를 읽어 `주문`, `주문상품` 시트에 적재
 - 처리 실패 시 `오류목록`, `파일처리이력` 기록
-- 처리 완료 파일과 오류 파일을 각각 다른 Drive 폴더로 이동
+- 처리한 입력 파일은 시트 기록 후 휴지통으로 정리
 - 시간 기반 트리거로 자동 실행
 
 ## 실행 방식
 
-- 이 프로젝트는 Google Sheets 바인드 프로젝트가 아니어도 됩니다.
-- standalone Apps Script 프로젝트에서도 실행할 수 있습니다.
-- 단, 먼저 Script Properties에 `ROOT_FOLDER_ID`를 넣어야 합니다.
-- 초기화 함수가 이 상위 폴더 아래에 작업 폴더와 운영 스프레드시트를 자동 생성합니다.
+- 이 프로젝트는 standalone Apps Script 프로젝트에서도 실행할 수 있습니다.
+- 먼저 Script Properties에 `ROOT_FOLDER_ID`를 넣어야 합니다.
+- 초기화 함수가 이 상위 폴더 아래에 입력 폴더와 운영 스프레드시트를 자동 생성합니다.
 
 ## 시작 전 준비물
 
@@ -46,8 +45,6 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 생성/사용 폴더:
 
 - `csv_input`
-- `csv_processed`
-- `csv_error`
 
 생성/사용 시트:
 
@@ -64,8 +61,6 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 생성/사용 폴더:
 
 - `order_csv_input`
-- `order_csv_processed`
-- `order_csv_error`
 
 생성/사용 시트:
 
@@ -96,8 +91,9 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 3. 반환된 `spreadsheetUrl` 또는 `OPERATIONS_SPREADSHEET_ID`로 운영 스프레드시트 확인
 4. 생성된 `csv_input` 폴더에 `.csv` 파일 업로드
 5. 트리거를 기다리거나 `scanCsvInputFolder()` 수동 실행
-6. 성공 시 `상품마스터`에 적재 후 `csv_processed` 이동
-7. 실패 시 `오류목록`, `파일처리이력` 기록 후 `csv_error` 이동
+6. 성공 시 `상품마스터`에 적재
+7. 실패 시 `오류목록`, `파일처리이력`에 기록
+8. 성공/실패와 관계없이 입력 파일은 휴지통으로 정리
 
 ### 주문 CSV
 
@@ -106,8 +102,9 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 3. 반환된 `spreadsheetUrl` 또는 `OPERATIONS_SPREADSHEET_ID`로 운영 스프레드시트 확인
 4. 생성된 `order_csv_input` 폴더에 `.csv` 파일 업로드
 5. 트리거를 기다리거나 `scanOrderFolder()` 수동 실행
-6. 성공 시 `주문`, `주문상품` 시트에 적재 후 `order_csv_processed` 이동
-7. 실패 시 `오류목록`, `파일처리이력` 기록 후 `order_csv_error` 이동
+6. 성공 시 `주문`, `주문상품` 시트에 적재
+7. 실패 시 `오류목록`, `파일처리이력`에 기록
+8. 성공/실패와 관계없이 입력 파일은 휴지통으로 정리
 
 ## Script Properties
 
@@ -119,11 +116,7 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 
 - `OPERATIONS_SPREADSHEET_ID`
 - `CSV_INPUT_FOLDER_ID`
-- `CSV_PROCESSED_FOLDER_ID`
-- `CSV_ERROR_FOLDER_ID`
 - `ORDER_CSV_INPUT_FOLDER_ID`
-- `ORDER_CSV_PROCESSED_FOLDER_ID`
-- `ORDER_CSV_ERROR_FOLDER_ID`
 
 ## 로컬 개발
 
@@ -174,7 +167,7 @@ npm run push
 ### 상품 흐름
 
 - `src/Config.js`: 상품 폴더/시트/속성 키 설정
-- `src/Setup.js`: 상품 폴더/운영 스프레드시트/트리거 초기화
+- `src/Setup.js`: 상품 입력 폴더/운영 스프레드시트/트리거 초기화
 - `src/Main.js`: 상품 CSV 처리 메인 흐름
 - `src/CsvVaildation.js`: 상품 CSV 파싱/헤더/행 검증
 - `src/Productimport.js`: 상품마스터 적재와 중복 코드 검사
@@ -183,14 +176,14 @@ npm run push
 ### 주문 흐름
 
 - `src/Order_Config.js`: 주문 폴더/시트/헤더 설정
-- `src/Order_Setup.js`: 주문 폴더/시트/트리거 초기화
+- `src/Order_Setup.js`: 주문 입력 폴더/시트/트리거 초기화
 - `src/Order_Main.js`: 주문 CSV 처리 메인 흐름
 - `src/Order_CsvParser.js`: 주문 CSV 파싱
 - `src/Order_Validator.js`: 주문 헤더/행 검증
 - `src/Order_DuplicateChecker.js`: 주문 파일/품목번호 중복 검사
 - `src/Order_SheetRepository.js`: 주문/주문상품 시트 적재와 롤백
 - `src/Order_ErrorService.js`: 주문 이력/오류 기록
-- `src/Order_DriveService.js`: 주문 파일 이동과 입력 폴더 접근
+- `src/Order_DriveService.js`: 주문 입력 폴더 접근과 파일 정리
 
 ## 문서
 

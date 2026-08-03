@@ -25,7 +25,7 @@ function scanCsvInputFolder() {
   }
 }
 
-// 상품 CSV 한 개를 파싱, 검증, 저장, 이동까지 처리하는 메인 흐름이다.
+// 상품 CSV 한 개를 파싱, 검증, 저장, 기록, 입력 파일 정리까지 처리하는 메인 흐름이다.
 function processCsvFile_(file) {
   const startedAt = new Date();
   let totalRows = 0;
@@ -72,8 +72,6 @@ function processCsvFile_(file) {
     assertNoDuplicateProductCodes_(products);
     importedRows = importProducts_(file, products);
 
-    moveFile_(file, CONFIG.properties.processedFolderId);
-
     appendHistory_(file, {
       status: 'SUCCESS',
       totalRows,
@@ -82,6 +80,7 @@ function processCsvFile_(file) {
       startedAt,
       message: '상품마스터 등록 완료',
     });
+    trashFile_(file);
   } catch (error) {
     // 예외가 아직 로그로 남지 않은 경우에만 공통 오류 로그를 한 번 추가한다.
     if (!error.alreadyLogged) {
@@ -93,12 +92,6 @@ function processCsvFile_(file) {
       });
     }
 
-    try {
-      moveFile_(file, CONFIG.properties.errorFolderId);
-    } catch (moveError) {
-      console.error('오류 파일 이동 실패', moveError);
-    }
-
     appendHistory_(file, {
       status: 'FAILED',
       totalRows,
@@ -107,6 +100,7 @@ function processCsvFile_(file) {
       startedAt,
       message: error.message || String(error),
     });
+    trashFile_(file);
 
     console.error(`파일 처리 실패: ${file.getName()}`, error);
   }

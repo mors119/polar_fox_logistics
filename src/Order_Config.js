@@ -2,8 +2,6 @@
 const ORDER_CONFIG = Object.freeze({
   folders: {
     input: 'order_csv_input',
-    processed: 'order_csv_processed',
-    error: 'order_csv_error',
   },
   sheets: {
     orders: '주문',
@@ -13,8 +11,6 @@ const ORDER_CONFIG = Object.freeze({
   },
   properties: {
     inputFolderId: 'ORDER_CSV_INPUT_FOLDER_ID',
-    processedFolderId: 'ORDER_CSV_PROCESSED_FOLDER_ID',
-    errorFolderId: 'ORDER_CSV_ERROR_FOLDER_ID',
   },
   triggerHandler: 'scanOrderFolder',
   triggerMinutes: 5,

@@ -51,9 +51,9 @@ function appendErrorLog_(file, stage, error) {
   ]);
 }
 
-// 처리 결과에 따라 지정된 폴더로 파일을 이동시킨다.
-function moveFile_(file, propertyKey) {
-  file.moveTo(getConfiguredFolder_(propertyKey));
+// 처리 완료한 입력 파일은 시트에 기록을 남긴 뒤 휴지통으로 보낸다.
+function trashFile_(file) {
+  file.setTrashed(true);
 }
 
 // 저장된 운영 스프레드시트 ID 기준으로 시트를 가져오는 공통 함수다.
