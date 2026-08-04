@@ -1,4 +1,4 @@
-// 주문 입력 폴더를 순회하면서 CSV 파일만 골라 처리한다.
+// 주문 입력 폴더를 순회하면서 CSV, 엑셀, 구글 스프레드시트만 골라 처리한다.
 function scanOrderFolder() {
   const lock = LockService.getScriptLock();
 
@@ -14,7 +14,7 @@ function scanOrderFolder() {
     while (files.hasNext()) {
       const file = files.next();
 
-      if (!isCsvFile_(file)) {
+      if (!isSupportedImportFile_(file)) {
         continue;
       }
 

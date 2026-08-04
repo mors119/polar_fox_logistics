@@ -1,5 +1,13 @@
-// Drive 파일 내용을 UTF-8 문자열로 읽고 BOM이 있으면 제거한 뒤 CSV로 파싱한다.
+// 입력 파일 형식에 따라 CSV 텍스트 또는 스프레드시트 표 데이터를 2차원 배열로 읽는다.
 function parseCsvFile_(file) {
+  if (isGoogleSpreadsheetFile_(file)) {
+    return readSpreadsheetTable_(file.getId());
+  }
+
+  if (isExcelFile_(file)) {
+    return readExcelTable_(file);
+  }
+
   let text = file.getBlob().getDataAsString('UTF-8');
 
   if (text.charCodeAt(0) === 0xfeff) {
@@ -7,6 +15,71 @@ function parseCsvFile_(file) {
   }
 
   return Utilities.parseCsv(text);
+}
+
+// 구글 스프레드시트 파일은 첫 번째 시트의 표시값을 그대로 읽는다.
+function readSpreadsheetTable_(spreadsheetId) {
+  const sheet = SpreadsheetApp.openById(spreadsheetId).getSheets()[0];
+
+  if (!sheet) {
+    return [];
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+
+  if (lastRow === 0 || lastColumn === 0) {
+    return [];
+  }
+
+  return sheet.getRange(1, 1, lastRow, lastColumn).getDisplayValues();
+}
+
+// 엑셀 파일은 임시로 구글 스프레드시트로 변환한 뒤 첫 번째 시트를 읽고 바로 정리한다.
+function readExcelTable_(file) {
+  if (typeof Drive === 'undefined' || !Drive.Files || !Drive.Files.insert) {
+    throw appError_(
+      'DRIVE_API_NOT_ENABLED',
+      'xlsx 처리를 위해 Apps Script 고급 Drive 서비스를 활성화하세요.',
+      'FILE_PARSE',
+    );
+  }
+
+  const convertedFile = Drive.Files.insert(
+    {
+      title: `[temp] ${file.getName()}`,
+      mimeType: MimeType.GOOGLE_SHEETS,
+      parents: [{ id: getRootFolder_().getId() }],
+    },
+    file.getBlob(),
+    { convert: true },
+  );
+
+  try {
+    return readSpreadsheetTable_(convertedFile.id);
+  } finally {
+    DriveApp.getFileById(convertedFile.id).setTrashed(true);
+  }
+}
+
+// 구글 스프레드시트로 업로드된 파일도 입력 대상으로 허용한다.
+function isGoogleSpreadsheetFile_(file) {
+  return file.getMimeType() === MimeType.GOOGLE_SHEETS;
+}
+
+// 엑셀 원본 파일은 확장자와 MIME 타입 기준으로 판별한다.
+function isExcelFile_(file) {
+  const name = file.getName().toLowerCase();
+  const mimeType = file.getMimeType();
+
+  return (
+    name.endsWith('.xlsx') ||
+    name.endsWith('.xls') ||
+    mimeType === MimeType.MICROSOFT_EXCEL ||
+    mimeType ===
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mimeType === 'application/vnd.ms-excel'
+  );
 }
 
 // 헤더 비교 전에는 공백과 BOM을 제거해서 비교 기준을 통일한다.

@@ -1,4 +1,4 @@
-// 상품 입력 폴더를 순회하면서 CSV 파일만 골라 처리한다.
+// 상품 입력 폴더를 순회하면서 CSV, 엑셀, 구글 스프레드시트만 골라 처리한다.
 function scanCsvInputFolder() {
   const lock = LockService.getScriptLock();
 
@@ -14,7 +14,7 @@ function scanCsvInputFolder() {
     while (files.hasNext()) {
       const file = files.next();
 
-      if (!isCsvFile_(file)) {
+      if (!isSupportedImportFile_(file)) {
         continue;
       }
 
@@ -106,9 +106,11 @@ function processCsvFile_(file) {
   }
 }
 
-// 확장자와 MIME 타입 기준으로 CSV 파일만 처리 대상으로 본다.
-function isCsvFile_(file) {
+// CSV 텍스트, 엑셀 파일, 구글 스프레드시트만 처리 대상으로 본다.
+function isSupportedImportFile_(file) {
   return (
+    isGoogleSpreadsheetFile_(file) ||
+    isExcelFile_(file) ||
     file.getName().toLowerCase().endsWith('.csv') ||
     file.getMimeType() === MimeType.CSV ||
     file.getMimeType() === 'text/csv'

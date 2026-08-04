@@ -11,11 +11,14 @@ function setupOrderCsvSystem() {
       ORDER_CONFIG.folders.input,
     );
 
+    ensureSettingsSheet_(spreadsheet);
+
     // 주문 시트는 고정 헤더로 만들고, 공용 시트는 필요한 헤더를 덧붙이는 방식으로 보정한다.
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    SpreadsheetApp.flush();
     ensureOrderTrigger_();
 
     const result = {
@@ -23,6 +26,7 @@ function setupOrderCsvSystem() {
       spreadsheetId: spreadsheet.getId(),
       inputFolderUrl: input.getUrl(),
       spreadsheetUrl: spreadsheet.getUrl(),
+      sheetNames: spreadsheet.getSheets().map((sheet) => sheet.getName()),
     };
 
     console.log(JSON.stringify(result, null, 2));

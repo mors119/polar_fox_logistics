@@ -1,12 +1,6 @@
-// 주문 CSV 파일을 읽어 헤더와 데이터 행 구조로 분리한다.
+// 주문 입력 파일을 읽어 헤더와 데이터 행 구조로 분리한다.
 function parseOrderCsv(file) {
-  let text = file.getBlob().getDataAsString('UTF-8');
-
-  if (text.charCodeAt(0) === 0xfeff) {
-    text = text.slice(1);
-  }
-
-  const table = Utilities.parseCsv(text);
+  const table = parseCsvFile_(file);
   // 완전히 비어 있는 줄은 이후 검증 대상에서 제외한다.
   const nonEmptyRows = table.filter((row) =>
     row.some((value) => String(value ?? '').trim() !== ''),
