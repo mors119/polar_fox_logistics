@@ -66,6 +66,7 @@ function importOrderItems(file, rows) {
   const sheet = getSheet_(ORDER_CONFIG.sheets.orderItems);
   const now = new Date();
   const values = rows.map((row) => [
+    false,
     getTrimmedField_(row, '품목별 주문번호'),
     getTrimmedField_(row, '주문번호'),
     getTrimmedField_(row, '상품품목코드'),
@@ -80,6 +81,11 @@ function importOrderItems(file, rows) {
   ]);
 
   const writeResult = appendRowsToSheet_(sheet, values);
+
+  if (writeResult.rowCount > 0) {
+    sheet.getRange(writeResult.startRow, 1, writeResult.rowCount, 1).insertCheckboxes();
+  }
+
   const orderItems = rows.map((row) => ({
     orderItemNumber: getTrimmedField_(row, '품목별 주문번호'),
     orderNumber: getTrimmedField_(row, '주문번호'),

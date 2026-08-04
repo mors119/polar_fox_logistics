@@ -16,10 +16,12 @@ function setupOrderCsvSystem() {
     // 주문 시트는 고정 헤더로 만들고, 공용 시트는 필요한 헤더를 덧붙이는 방식으로 보정한다.
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
+    ensureOrderItemCheckboxColumn_(spreadsheet);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     SpreadsheetApp.flush();
     ensureOrderTrigger_();
+    ensureConfiguredBackupTrigger_();
 
     const result = {
       rootFolderUrl: rootFolder.getUrl(),
@@ -36,19 +38,37 @@ function setupOrderCsvSystem() {
   }
 }
 
-// 주문 트리거는 이미 있으면 그대로 두고, 없을 때만 추가한다.
-function ensureOrderTrigger_() {
-  const hasTrigger = ScriptApp.getProjectTriggers().some(
-    (trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.triggerHandler,
-  );
+// 주문상품 시트 첫 번째 열은 현장 체크용 체크박스로 고정한다.
+function ensureOrderItemCheckboxColumn_(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName(ORDER_CONFIG.sheets.orderItems);
 
-  if (hasTrigger) {
+  if (!sheet) {
     return;
   }
 
+  sheet.getRange(1, 1).setValue(ORDER_ITEM_SHEET_HEADERS[0]);
+
+  if (sheet.getMaxRows() > 1) {
+    sheet.getRange(2, 1, sheet.getMaxRows() - 1, 1).insertCheckboxes();
+  }
+}
+
+// 주문 트리거는 이미 있으면 그대로 두고, 없을 때만 추가한다.
+function ensureOrderTrigger_() {
+  const settings = getSettingsMap_();
+  const triggerMinutes = parseRecurringTriggerMinutes_(
+    settings[CONFIG.settingsKeys.orderTriggerMinutes],
+    ORDER_CONFIG.triggerMinutes,
+    CONFIG.settingsKeys.orderTriggerMinutes,
+  );
+
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.triggerHandler)
+    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
+
   ScriptApp.newTrigger(ORDER_CONFIG.triggerHandler)
     .timeBased()
-    .everyMinutes(ORDER_CONFIG.triggerMinutes)
+    .everyMinutes(triggerMinutes)
     .create();
 }
 

@@ -71,6 +71,7 @@ const ORDER_SHEET_HEADERS = Object.freeze([
 
 // 주문상품 시트에는 CSV의 각 행을 품목 단위로 저장한다.
 const ORDER_ITEM_SHEET_HEADERS = Object.freeze([
+  '체크',
   '품목별 주문번호',
   '주문번호',
   '상품품목코드',

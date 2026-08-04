@@ -10,6 +10,11 @@ const CONFIG = Object.freeze({
     history: '파일처리이력',
   },
   settingsKeys: {
+    productTriggerMinutes: '상품 트리거 분',
+    orderTriggerMinutes: '주문 트리거 분',
+    operatingWeekdays: '운영 요일',
+    operatingStartTime: '운영 시작 시간',
+    operatingEndTime: '운영 종료 시간',
     backupEmail: '백업 메일 주소',
     backupSheets: '백업 대상 시트',
     backupWeekday: '백업 요일',
@@ -24,6 +29,7 @@ const CONFIG = Object.freeze({
   backupExportMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   spreadsheetName: 'polar_fox_logistics',
   triggerHandler: 'scanCsvInputFolder',
+  backupTriggerHandler: 'sendConfiguredBackupEmail',
   triggerMinutes: 5,
 });
 
@@ -79,8 +85,13 @@ const PRODUCT_SHEET_HEADERS = Object.freeze([
 
 // 설정 시트에서 사용자 입력을 받을 기본 행이다.
 const SETTINGS_SHEET_ROWS = Object.freeze([
-  ['백업 메일 주소', '', '백업 파일을 받을 이메일 주소'],
-  ['백업 대상 시트', '', '쉼표로 구분한 시트명 예: 상품마스터,주문,주문상품'],
-  ['백업 요일', '', '매일 또는 월,화,수,목,금,토,일 중 하나'],
-  ['백업 시간', '', '24시간 형식 HH:mm 예: 09:00'],
+  ['상품 트리거 분', '30', '허용값: 1, 5, 10, 15, 30'],
+  ['주문 트리거 분', '30', '허용값: 1, 5, 10, 15, 30'],
+  ['운영 요일', '월,화,수,목,금', '쉼표로 구분. 예: 월,화,수,목,금 또는 매일'],
+  ['운영 시작 시간', '09:00', '24시간 형식 HH:mm 예: 09:00'],
+  ['운영 종료 시간', '18:00', '24시간 형식 HH:mm 예: 18:00'],
+  ['백업 메일 주소', '', '백업 파일을 받을 이메일 주소 (예: user@example.com)'],
+  ['백업 대상 시트', '상품마스터', '쉼표로 구분한 시트명 예: 상품마스터,주문,주문상품'],
+  ['백업 요일', '금', '쉼표로 구분. 예: 수,금 또는 매일'],
+  ['백업 시간', '09:00', '24시간 형식 HH:mm 예: 09:00'],
 ]);

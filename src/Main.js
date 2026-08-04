@@ -8,6 +8,11 @@ function scanCsvInputFolder() {
   }
 
   try {
+    if (!shouldRunDuringOperatingHours_()) {
+      console.log('운영 시간이 아니므로 상품 CSV 스캔을 건너뜁니다.');
+      return;
+    }
+
     const folder = getConfiguredFolder_(CONFIG.properties.inputFolderId);
     const files = folder.getFiles();
 
