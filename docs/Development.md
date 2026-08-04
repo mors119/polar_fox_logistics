@@ -41,7 +41,7 @@
 4. `src/Order_DuplicateChecker.js`에서 중복 정책 수정
 5. `src/Order_SheetRepository.js`에서 적재/롤백 수정
 6. `src/Order_Main.js`에서 메인 흐름 수정
-7. 필요한 경우 `src/Order_Setup.js`에서 초기화 구조 수정
+7. 필요한 경우 `src/Setup.js`에서 통합 초기화 구조 수정
 
 ## 수동 확인 포인트
 

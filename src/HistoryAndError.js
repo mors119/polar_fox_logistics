@@ -56,6 +56,25 @@ function trashFile_(file) {
   file.setTrashed(true);
 }
 
+// 처리 실패한 입력 파일은 공통 error 폴더로 옮겨 재확인할 수 있게 보관한다.
+function moveFileToErrorFolder_(file) {
+  moveFileToFolder_(file, getConfiguredFolder_(CONFIG.properties.errorFolderId));
+}
+
+// Drive 파일은 목표 폴더로 옮기고, 기존 부모 폴더에서는 제거한다.
+function moveFileToFolder_(file, targetFolder) {
+  targetFolder.addFile(file);
+
+  const parents = file.getParents();
+  while (parents.hasNext()) {
+    const parent = parents.next();
+
+    if (parent.getId() !== targetFolder.getId()) {
+      parent.removeFile(file);
+    }
+  }
+}
+
 // 저장된 운영 스프레드시트 ID 기준으로 시트를 가져오는 공통 함수다.
 function getSheet_(sheetName) {
   const sheet = getSpreadsheet_().getSheetByName(sheetName);

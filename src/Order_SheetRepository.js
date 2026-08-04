@@ -106,6 +106,10 @@ function rollbackImportedRows(context) {
   const orderItemSheet = getSheet_(ORDER_CONFIG.sheets.orderItems);
   const orderSheet = getSheet_(ORDER_CONFIG.sheets.orders);
 
+  if (context.productStockSnapshots && context.productStockSnapshots.length > 0) {
+    restoreProductStockSnapshots_(context.productStockSnapshots);
+  }
+
   if (context.orderItemRowCount > 0 && context.orderItemStartRow) {
     orderItemSheet.deleteRows(context.orderItemStartRow, context.orderItemRowCount);
   }
@@ -113,6 +117,103 @@ function rollbackImportedRows(context) {
   if (context.orderRowCount > 0 && context.orderStartRow) {
     orderSheet.deleteRows(context.orderStartRow, context.orderRowCount);
   }
+}
+
+// 주문이 성공적으로 적재되면 상품마스터의 가용재고를 줄이고 발송대기를 늘린다.
+function applyOrderInventoryAdjustments_(rows) {
+  const productSheet = getSheet_(CONFIG.sheets.products);
+  const headerMap = getHeaderIndexMap_(productSheet);
+  const productCodeColumn = headerMap['상품품목코드'];
+  const availableStockColumn = headerMap['가용재고'];
+  const pendingStockColumn = headerMap['발송대기'];
+
+  if (!productCodeColumn || !availableStockColumn || !pendingStockColumn) {
+    throw appError_(
+      'PRODUCT_SHEET_HEADER_MISSING',
+      '상품마스터 시트에 상품품목코드, 가용재고, 발송대기 헤더가 필요합니다.',
+      'INVENTORY_APPLY',
+    );
+  }
+
+  const requestedQuantityMap = buildRequestedQuantityMap_(rows);
+  const lastRow = productSheet.getLastRow();
+
+  if (lastRow <= 1) {
+    throw appError_(
+      'PRODUCT_SHEET_EMPTY',
+      '상품마스터 시트에 재고 데이터가 없습니다.',
+      'INVENTORY_APPLY',
+    );
+  }
+
+  const productCodes = productSheet
+    .getRange(2, productCodeColumn, lastRow - 1, 1)
+    .getDisplayValues()
+    .flat()
+    .map((value) => String(value || '').trim());
+  const availableStocks = productSheet.getRange(2, availableStockColumn, lastRow - 1, 1).getValues();
+  const pendingStocks = productSheet.getRange(2, pendingStockColumn, lastRow - 1, 1).getValues();
+  const snapshots = [];
+
+  Object.keys(requestedQuantityMap).forEach((productCode) => {
+    const rowIndex = productCodes.indexOf(productCode);
+
+    if (rowIndex === -1) {
+      throw appError_(
+        'PRODUCT_NOT_FOUND',
+        `상품마스터에 없는 상품품목코드입니다: ${productCode}`,
+        'INVENTORY_APPLY',
+      );
+    }
+
+    const sheetRowNumber = rowIndex + 2;
+    const availableStock = Number(availableStocks[rowIndex][0] || 0);
+    const pendingStock = Number(pendingStocks[rowIndex][0] || 0);
+    const requestedQuantity = requestedQuantityMap[productCode];
+
+    snapshots.push({
+      rowNumber: sheetRowNumber,
+      availableStock,
+      pendingStock,
+    });
+
+    productSheet.getRange(sheetRowNumber, availableStockColumn).setValue(
+      availableStock - requestedQuantity,
+    );
+    productSheet.getRange(sheetRowNumber, pendingStockColumn).setValue(
+      pendingStock + requestedQuantity,
+    );
+  });
+
+  return snapshots;
+}
+
+// 재고 조정 도중 실패하면 주문 전 값으로 원복한다.
+function restoreProductStockSnapshots_(snapshots) {
+  const productSheet = getSheet_(CONFIG.sheets.products);
+  const headerMap = getHeaderIndexMap_(productSheet);
+  const availableStockColumn = headerMap['가용재고'];
+  const pendingStockColumn = headerMap['발송대기'];
+
+  snapshots.forEach((snapshot) => {
+    productSheet.getRange(snapshot.rowNumber, availableStockColumn).setValue(snapshot.availableStock);
+    productSheet.getRange(snapshot.rowNumber, pendingStockColumn).setValue(snapshot.pendingStock);
+  });
+}
+
+// 주문 파일 내부의 상품별 총 수량을 계산해 재고 차감과 검증에서 공통으로 사용한다.
+function buildRequestedQuantityMap_(rows) {
+  return rows.reduce((result, row) => {
+    const productCode = getTrimmedField_(row, '상품품목코드');
+    const quantity = parseIntegerField_(getTrimmedField_(row, '수량'));
+
+    if (!productCode || quantity === null || quantity < 1) {
+      return result;
+    }
+
+    result[productCode] = (result[productCode] || 0) + quantity;
+    return result;
+  }, {});
 }
 
 // 빈 배열이면 아무 작업도 하지 않고, 아니면 현재 마지막 행 아래에 일괄 추가한다.

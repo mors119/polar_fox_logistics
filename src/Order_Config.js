@@ -13,9 +13,11 @@ const ORDER_CONFIG = Object.freeze({
     inputFolderId: 'ORDER_CSV_INPUT_FOLDER_ID',
   },
   triggerHandler: 'scanOrderFolder',
+  editTriggerHandler: 'handleOrderItemCheckboxEdit',
   triggerMinutes: 5,
   defaultOrderStatus: '신규',
   defaultOrderItemStatus: '등록완료',
+  shippedOrderItemStatus: '출고완료',
   defaultErrorStatus: '미처리',
 });
 

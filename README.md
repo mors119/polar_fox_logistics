@@ -35,41 +35,24 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 ### 공통
 
 - 운영 스프레드시트 1개
+- `설정`
 - `오류목록`
 - `파일처리이력`
-
-### 상품 CSV용
-
-실행 함수: `setupSystem()`
-
-생성/사용 폴더:
-
+- `error`
 - `csv_input`
-
-생성/사용 시트:
-
-- `상품마스터`
-
-트리거:
-
-- `scanCsvInputFolder()`를 5분마다 실행
-
-### 주문 CSV용
-
-실행 함수: `setupOrderCsvSystem()`
-
-생성/사용 폴더:
-
 - `order_csv_input`
-
-생성/사용 시트:
-
+- `상품마스터`
 - `주문`
 - `주문상품`
 
+실행 함수: `setupSystem()`
+
 트리거:
 
-- `scanOrderFolder()`를 5분마다 실행
+- `scanCsvInputFolder()`
+- `scanOrderFolder()`
+- `handleOrderItemCheckboxEdit()` 설치형 편집 트리거
+- 설정값이 있으면 `sendConfiguredBackupEmail()`
 
 ## 중요한 폴더 구분
 
@@ -84,27 +67,14 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 
 ## 실행 순서
 
-### 상품 CSV
-
 1. Script Properties에 `ROOT_FOLDER_ID` 설정
 2. `setupSystem()` 실행
 3. 반환된 `spreadsheetUrl` 또는 `OPERATIONS_SPREADSHEET_ID`로 운영 스프레드시트 확인
-4. 생성된 `csv_input` 폴더에 `.csv` 파일 업로드
-5. 트리거를 기다리거나 `scanCsvInputFolder()` 수동 실행
-6. 성공 시 `상품마스터`에 적재
-7. 실패 시 `오류목록`, `파일처리이력`에 기록
-8. 성공/실패와 관계없이 입력 파일은 휴지통으로 정리
-
-### 주문 CSV
-
-1. Script Properties에 `ROOT_FOLDER_ID` 설정
-2. `setupOrderCsvSystem()` 실행
-3. 반환된 `spreadsheetUrl` 또는 `OPERATIONS_SPREADSHEET_ID`로 운영 스프레드시트 확인
-4. 생성된 `order_csv_input` 폴더에 `.csv` 파일 업로드
-5. 트리거를 기다리거나 `scanOrderFolder()` 수동 실행
-6. 성공 시 `주문`, `주문상품` 시트에 적재
-7. 실패 시 `오류목록`, `파일처리이력`에 기록
-8. 성공/실패와 관계없이 입력 파일은 휴지통으로 정리
+4. 생성된 `csv_input`, `order_csv_input`, `error` 폴더 확인
+5. 상품 CSV는 `csv_input`, 주문 CSV는 `order_csv_input`에 업로드
+6. 트리거를 기다리거나 `scanCsvInputFolder()`, `scanOrderFolder()`를 수동 실행
+7. 성공 시 `상품마스터`, `주문`, `주문상품` 시트에 적재
+8. 실패 시 `오류목록`, `파일처리이력`에 기록되고 입력 파일은 `error` 폴더로 이동
 
 ## Script Properties
 
@@ -117,6 +87,7 @@ ROOT_FOLDER_ID=상위_작업_폴더_ID
 - `OPERATIONS_SPREADSHEET_ID`
 - `CSV_INPUT_FOLDER_ID`
 - `ORDER_CSV_INPUT_FOLDER_ID`
+- `ERROR_FOLDER_ID`
 
 ## 로컬 개발
 
@@ -164,19 +135,14 @@ npm run push
 
 ## 파일 구조
 
-### 상품 흐름
-
 - `src/Config.js`: 상품 폴더/시트/속성 키 설정
-- `src/Setup.js`: 상품 입력 폴더/운영 스프레드시트/트리거 초기화
+- `src/Setup.js`: 상품/주문 입력 폴더, 운영 스프레드시트, 트리거 통합 초기화
 - `src/Main.js`: 상품 CSV 처리 메인 흐름
 - `src/CsvVaildation.js`: 상품 CSV 파싱/헤더/행 검증
 - `src/Productimport.js`: 상품마스터 적재와 중복 코드 검사
 - `src/HistoryAndError.js`: 이력/오류 기록과 공통 시트 접근
 
-### 주문 흐름
-
 - `src/Order_Config.js`: 주문 폴더/시트/헤더 설정
-- `src/Order_Setup.js`: 주문 입력 폴더/시트/트리거 초기화
 - `src/Order_Main.js`: 주문 CSV 처리 메인 흐름
 - `src/Order_CsvParser.js`: 주문 CSV 파싱
 - `src/Order_Validator.js`: 주문 헤더/행 검증
@@ -184,6 +150,7 @@ npm run push
 - `src/Order_SheetRepository.js`: 주문/주문상품 시트 적재와 롤백
 - `src/Order_ErrorService.js`: 주문 이력/오류 기록
 - `src/Order_DriveService.js`: 주문 입력 폴더 접근과 파일 정리
+- `src/Order_EditService.js`: 주문상품 체크박스 편집과 발송대기 반영
 
 ## 문서
 

@@ -23,7 +23,7 @@
 
 ## 주문 CSV 처리 구조
 
-- `src/Order_Setup.js`: 주문용 폴더, 시트, 트리거 준비
+- `src/Setup.js`: 상품/주문 폴더, 시트, 트리거 통합 준비
 - `src/Order_Main.js`: 주문 파일 순회와 메인 제어
 - `src/Order_CsvParser.js`: 주문 CSV 파싱
 - `src/Order_Validator.js`: 헤더/행 검증

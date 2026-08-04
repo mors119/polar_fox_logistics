@@ -1,4 +1,4 @@
-// 상품 CSV 처리에 필요한 폴더, 시트, 트리거를 한 번에 준비한다.
+// 상품/주문 CSV 처리에 필요한 폴더, 시트, 트리거를 한 번에 준비한다.
 function setupSystem() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -6,44 +6,35 @@ function setupSystem() {
   try {
     const rootFolder = getRootFolder_();
     const spreadsheet = getOrCreateSpreadsheet_();
-    const input = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
+    const productInput = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
+    const orderInput = getOrCreateFolder_(
+      ORDER_CONFIG.properties.inputFolderId,
+      ORDER_CONFIG.folders.input,
+    );
+    const errorFolder = getOrCreateFolder_(CONFIG.properties.errorFolderId, CONFIG.folders.error);
 
     ensureSettingsSheet_(spreadsheet);
 
-    // 상품 흐름은 초기화 시점에 필요한 시트 헤더를 강제로 맞춘다.
+    // 상품/주문 흐름은 초기화 시점에 필요한 시트와 헤더를 모두 강제로 맞춘다.
     ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.errors, [
-      '오류ID',
-      '발생일시',
-      '파일ID',
-      '파일명',
-      '처리단계',
-      '행번호',
-      '상품품목코드',
-      '오류코드',
-      '오류메시지',
-      '처리상태',
-    ]);
-    ensureSheet_(spreadsheet, CONFIG.sheets.history, [
-      '파일ID',
-      '파일명',
-      '처리상태',
-      '총행수',
-      '등록행수',
-      '오류건수',
-      '처리시작',
-      '처리종료',
-      '메시지',
-    ]);
+    ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
+    ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
+    ensureOrderItemCheckboxColumn_(spreadsheet);
+    ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+    ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     SpreadsheetApp.flush();
 
     ensureTrigger_();
+    ensureOrderTrigger_();
+    ensureOrderEditTrigger_(spreadsheet);
     ensureConfiguredBackupTrigger_();
 
     const result = {
       rootFolderUrl: rootFolder.getUrl(),
       spreadsheetId: spreadsheet.getId(),
-      inputFolderUrl: input.getUrl(),
+      productInputFolderUrl: productInput.getUrl(),
+      orderInputFolderUrl: orderInput.getUrl(),
+      errorFolderUrl: errorFolder.getUrl(),
       spreadsheetUrl: spreadsheet.getUrl(),
       sheetNames: spreadsheet.getSheets().map((sheet) => sheet.getName()),
     };
@@ -75,16 +66,40 @@ function getOrCreateSpreadsheet_() {
 
   if (savedId) {
     try {
-      return SpreadsheetApp.openById(savedId);
+      const spreadsheet = SpreadsheetApp.openById(savedId);
+      ensureFileInRootFolder_(DriveApp.getFileById(spreadsheet.getId()));
+      return spreadsheet;
     } catch (error) {
       console.warn(`기존 스프레드시트 ID를 사용할 수 없습니다: ${CONFIG.properties.spreadsheetId}`);
     }
   }
 
+  const existingSpreadsheet = findExistingRootSpreadsheet_();
+  if (existingSpreadsheet) {
+    properties.setProperty(CONFIG.properties.spreadsheetId, existingSpreadsheet.getId());
+    ensureFileInRootFolder_(DriveApp.getFileById(existingSpreadsheet.getId()));
+    return existingSpreadsheet;
+  }
+
   const spreadsheet = SpreadsheetApp.create(CONFIG.spreadsheetName);
-  moveFileToRootFolder_(DriveApp.getFileById(spreadsheet.getId()));
+  ensureFileInRootFolder_(DriveApp.getFileById(spreadsheet.getId()));
   properties.setProperty(CONFIG.properties.spreadsheetId, spreadsheet.getId());
   return spreadsheet;
+}
+
+// 루트 폴더에 이미 같은 이름의 운영 스프레드시트가 있으면 재사용한다.
+function findExistingRootSpreadsheet_() {
+  const files = getRootFolder_().getFilesByName(CONFIG.spreadsheetName);
+
+  while (files.hasNext()) {
+    const file = files.next();
+
+    if (file.getMimeType() === MimeType.GOOGLE_SHEETS) {
+      return SpreadsheetApp.openById(file.getId());
+    }
+  }
+
+  return null;
 }
 
 // Script Properties에 저장된 폴더 ID가 있으면 재사용하고, 없으면 상위 폴더 아래에 새 폴더를 만든다.
@@ -109,9 +124,23 @@ function getOrCreateFolder_(propertyKey, folderName) {
 }
 
 // 새로 만든 파일이 있으면 지정된 상위 폴더 아래로 옮기고, 내 Drive 루트에서는 제거한다.
-function moveFileToRootFolder_(file) {
+function ensureFileInRootFolder_(file) {
   const rootFolder = getRootFolder_();
-  rootFolder.addFile(file);
+  let hasRootParent = false;
+  const parents = file.getParents();
+
+  while (parents.hasNext()) {
+    const parent = parents.next();
+
+    if (parent.getId() === rootFolder.getId()) {
+      hasRootParent = true;
+      break;
+    }
+  }
+
+  if (!hasRootParent) {
+    rootFolder.addFile(file);
+  }
 
   try {
     DriveApp.getRootFolder().removeFile(file);
@@ -244,6 +273,82 @@ function ensureTrigger_() {
     .create();
 }
 
+// 주문상품 시트 첫 번째 열은 현장 체크용 체크박스로 고정한다.
+function ensureOrderItemCheckboxColumn_(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName(ORDER_CONFIG.sheets.orderItems);
+
+  if (!sheet) {
+    return;
+  }
+
+  sheet.getRange(1, 1).setValue(ORDER_ITEM_SHEET_HEADERS[0]);
+
+  if (sheet.getMaxRows() > 1) {
+    sheet.getRange(2, 1, sheet.getMaxRows() - 1, 1).insertCheckboxes();
+  }
+}
+
+// standalone 프로젝트에서도 주문상품 체크박스 편집을 잡기 위해 설치형 onEdit 트리거를 만든다.
+function ensureOrderEditTrigger_(spreadsheet) {
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.editTriggerHandler)
+    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
+
+  ScriptApp.newTrigger(ORDER_CONFIG.editTriggerHandler)
+    .forSpreadsheet(spreadsheet)
+    .onEdit()
+    .create();
+}
+
+// 주문 트리거는 중복 생성되지 않도록 기존 것을 지우고 다시 만든다.
+function ensureOrderTrigger_() {
+  const settings = getSettingsMap_();
+  const triggerMinutes = parseRecurringTriggerMinutes_(
+    settings[CONFIG.settingsKeys.orderTriggerMinutes],
+    ORDER_CONFIG.triggerMinutes,
+    CONFIG.settingsKeys.orderTriggerMinutes,
+  );
+
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.triggerHandler)
+    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
+
+  ScriptApp.newTrigger(ORDER_CONFIG.triggerHandler)
+    .timeBased()
+    .everyMinutes(triggerMinutes)
+    .create();
+}
+
+// 공용 오류/이력 시트는 기존 헤더를 보존하면서 필요한 컬럼만 추가한다.
+function ensureSheetContainsHeaders_(spreadsheet, sheetName, requiredHeaders) {
+  let sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+  }
+
+  const lastColumn = Math.max(sheet.getLastColumn(), requiredHeaders.length);
+  const existingHeaders =
+    lastColumn > 0
+      ? sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].map(normalizeHeader_)
+      : [];
+
+  const mergedHeaders = existingHeaders.slice();
+  requiredHeaders.forEach((header) => {
+    if (!mergedHeaders.includes(header)) {
+      mergedHeaders.push(header);
+    }
+  });
+
+  if (mergedHeaders.length === 0) {
+    mergedHeaders.push(...requiredHeaders);
+  }
+
+  sheet.getRange(1, 1, 1, mergedHeaders.length).setValues([mergedHeaders]);
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
 // 설정 시트의 백업 요일/시간 값을 읽어 메일 백업 트리거를 다시 맞춘다.
 function ensureConfiguredBackupTrigger_() {
   ScriptApp.getProjectTriggers()
@@ -310,6 +415,7 @@ function syncConfiguredTriggers() {
 
   ensureTrigger_();
   ensureOrderTrigger_();
+  ensureOrderEditTrigger_(getSpreadsheet_());
   const backupTrigger = ensureConfiguredBackupTrigger_();
 
   const result = {
@@ -520,7 +626,6 @@ function padTimeNumber_(value) {
 // 초기 설정과 권한 승인을 한 번에 끝내기 위한 진입 함수다.
 function authorizeAll() {
   const setupResult = setupSystem();
-  const orderSetupResult = setupOrderCsvSystem();
   const triggerSyncResult = syncConfiguredTriggers();
 
   // 권한 범위에 포함되는 주요 서비스들을 한 번씩 실제 호출해 승인창을 유도한다.
@@ -542,7 +647,6 @@ function authorizeAll() {
 
   const result = {
     setupSystem: setupResult,
-    setupOrderCsvSystem: orderSetupResult,
     triggerSync: triggerSyncResult,
     backupEmailSent: Boolean(backupResult),
     backupResult,

@@ -105,7 +105,7 @@ function processCsvFile_(file) {
       startedAt,
       message: error.message || String(error),
     });
-    trashFile_(file);
+    moveFileToErrorFolder_(file);
 
     console.error(`파일 처리 실패: ${file.getName()}`, error);
   }

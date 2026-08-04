@@ -40,6 +40,7 @@ function processOrderFile(file) {
     orderRowCount: 0,
     orderItemStartRow: 0,
     orderItemRowCount: 0,
+    productStockSnapshots: [],
   };
 
   try {
@@ -67,6 +68,22 @@ function processOrderFile(file) {
       throw validationError;
     }
 
+    const inventoryValidation = validateOrderInventory_(parsedCsv.rows);
+    if (!inventoryValidation.valid) {
+      errorCount = inventoryValidation.errors.length;
+      inventoryValidation.errors.forEach((error) => {
+        recordImportError(file, 'INVENTORY_VALIDATION', error);
+      });
+
+      const inventoryError = appError_(
+        'INVENTORY_VALIDATION_FAILED',
+        `재고 검증 실패: ${inventoryValidation.errors.length}건`,
+        'INVENTORY_VALIDATION',
+      );
+      inventoryError.alreadyLogged = true;
+      throw inventoryError;
+    }
+
     checkDuplicateOrderItems(parsedCsv.rows);
 
     // 주문/주문상품은 별도 시트에 저장하므로, 부분 실패를 대비해 시작 행을 기억한다.
@@ -78,6 +95,8 @@ function processOrderFile(file) {
     const importedOrderItems = importOrderItems(file, parsedCsv.rows);
     rollbackContext.orderItemStartRow = importedOrderItems.orderItemStartRow;
     rollbackContext.orderItemRowCount = importedOrderItems.orderItemRowCount;
+
+    rollbackContext.productStockSnapshots = applyOrderInventoryAdjustments_(parsedCsv.rows);
 
     finalizeOrderFileHistory_(file, {
       rowNumber: historyContext.rowNumber,
@@ -96,7 +115,11 @@ function processOrderFile(file) {
     };
   } catch (error) {
     // 일부라도 저장된 뒤 실패하면 방금 넣은 행만 되돌리려고 롤백을 시도한다.
-    if (rollbackContext.orderRowCount > 0 || rollbackContext.orderItemRowCount > 0) {
+    if (
+      rollbackContext.orderRowCount > 0 ||
+      rollbackContext.orderItemRowCount > 0 ||
+      rollbackContext.productStockSnapshots.length > 0
+    ) {
       try {
         rollbackImportedRows(rollbackContext);
       } catch (rollbackError) {
@@ -132,7 +155,7 @@ function processOrderFile(file) {
       errorCount: errorCount || 1,
       message: error.message || String(error),
     });
-    trashOrderFile_(file);
+    moveOrderFileToErrorFolder_(file);
 
     console.error(`주문 파일 처리 실패: ${file.getName()}`, error);
     return {

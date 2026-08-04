@@ -208,6 +208,86 @@ function validateOrderRows(rows) {
   };
 }
 
+// 주문 파일의 상품품목코드를 상품마스터와 대조해 미등록 상품과 재고 부족을 검사한다.
+function validateOrderInventory_(rows) {
+  const productSheet = getSheet_(CONFIG.sheets.products);
+  const productRecords = getSheetRecords_(productSheet);
+  const productStockMap = buildProductStockMap_(productRecords);
+  const rowsByProductCode = {};
+  const requestedQuantityMap = buildRequestedQuantityMap_(rows);
+  const errors = [];
+
+  rows.forEach((row) => {
+    const productCode = getTrimmedField_(row, '상품품목코드');
+    if (!productCode) {
+      return;
+    }
+
+    if (!rowsByProductCode[productCode]) {
+      rowsByProductCode[productCode] = [];
+    }
+
+    rowsByProductCode[productCode].push(row);
+  });
+
+  Object.keys(rowsByProductCode).forEach((productCode) => {
+    const productStock = productStockMap[productCode];
+
+    if (!productStock) {
+      rowsByProductCode[productCode].forEach((row) => {
+        errors.push(
+          buildOrderRowError_(
+            row.rowNumber,
+            getTrimmedField_(row, '주문번호'),
+            getTrimmedField_(row, '품목별 주문번호'),
+            'PRODUCT_NOT_FOUND',
+            `상품마스터에 없는 상품품목코드입니다: ${productCode}`,
+          ),
+        );
+      });
+      return;
+    }
+
+    const requestedQuantity = requestedQuantityMap[productCode];
+    if (requestedQuantity > productStock.availableStock) {
+      rowsByProductCode[productCode].forEach((row) => {
+        errors.push(
+          buildOrderRowError_(
+            row.rowNumber,
+            getTrimmedField_(row, '주문번호'),
+            getTrimmedField_(row, '품목별 주문번호'),
+            'INSUFFICIENT_STOCK',
+            `재고 부족: ${productCode} 주문합계 ${requestedQuantity}, 가용재고 ${productStock.availableStock}`,
+          ),
+        );
+      });
+    }
+  });
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+// 상품마스터 시트를 상품품목코드 기준 재고 맵으로 바꿔 주문 검증에 재사용한다.
+function buildProductStockMap_(records) {
+  return records.reduce((result, record) => {
+    const productCode = getRecordValueByAliases_(record, '상품품목코드');
+
+    if (!productCode) {
+      return result;
+    }
+
+    const availableStock = parseNumberField_(getRecordValueByAliases_(record, '가용재고'));
+
+    result[productCode] = {
+      availableStock: availableStock === null ? 0 : availableStock,
+    };
+    return result;
+  }, {});
+}
+
 // 오류 로그 시트에 바로 쓸 수 있는 표준 형태의 오류 객체를 만든다.
 function buildOrderRowError_(rowNumber, orderNumber, orderItemNumber, code, message) {
   return {

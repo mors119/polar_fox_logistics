@@ -2,6 +2,7 @@
 const CONFIG = Object.freeze({
   folders: {
     input: 'csv_input',
+    error: 'error',
   },
   sheets: {
     settings: '설정',
@@ -25,6 +26,7 @@ const CONFIG = Object.freeze({
     rootFolderId: 'ROOT_FOLDER_ID',
     spreadsheetId: 'OPERATIONS_SPREADSHEET_ID',
     inputFolderId: 'CSV_INPUT_FOLDER_ID',
+    errorFolderId: 'ERROR_FOLDER_ID',
   },
   backupExportMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   spreadsheetName: 'polar_fox_logistics',
