@@ -37,7 +37,6 @@ function validateCsv(parsedCsv) {
 // 각 행의 필수값, 수량 형식, 주문번호 내부 일관성을 한 번에 검사한다.
 function validateOrderRows(rows) {
   const errors = [];
-  const seenOrderItemNumbers = new Set();
   const orderSnapshots = {};
 
   rows.forEach((row) => {
@@ -72,18 +71,6 @@ function validateOrderRows(rows) {
           '품목별 주문번호는 필수입니다.',
         ),
       );
-    } else if (seenOrderItemNumbers.has(orderItemNumber)) {
-      errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'DUPLICATE_IN_FILE',
-          'CSV 내부 품목별 주문번호가 중복되었습니다.',
-        ),
-      );
-    } else {
-      seenOrderItemNumbers.add(orderItemNumber);
     }
 
     if (!productItemCode) {

@@ -22,41 +22,17 @@ function checkDuplicateFile(file) {
   }
 }
 
-// 품목별 주문번호는 파일 내부와 기존 시트 양쪽에서 모두 중복을 막는다.
-function checkDuplicateOrderItems(rows) {
-  const seen = new Set();
-  const duplicatesInFile = [];
-
-  rows.forEach((row) => {
-    const orderItemNumber = getTrimmedField_(row, '품목별 주문번호');
-    if (!orderItemNumber) {
-      return;
-    }
-
-    if (seen.has(orderItemNumber)) {
-      duplicatesInFile.push(orderItemNumber);
-    } else {
-      seen.add(orderItemNumber);
-    }
-  });
-
-  if (duplicatesInFile.length > 0) {
-    throw appError_(
-      'DUPLICATE_ORDER_ITEM_IN_FILE',
-      `CSV 내부 품목별 주문번호 중복: ${[...new Set(duplicatesInFile)].join(', ')}`,
-      'DUPLICATE_CHECK',
-    );
-  }
-
-  const existingOrderItemNumbers = getExistingOrderItemNumbers_();
+// 기존 주문 시트에 이미 있는 주문번호는 다시 적재하지 않도록 막는다.
+function checkDuplicateOrders(rows) {
+  const existingOrderNumbers = getExistingOrderNumbers_();
   const duplicatesInSheet = rows
-    .map((row) => getTrimmedField_(row, '품목별 주문번호'))
-    .filter((orderItemNumber) => existingOrderItemNumbers.has(orderItemNumber));
+    .map((row) => getTrimmedField_(row, '주문번호'))
+    .filter((orderNumber) => orderNumber && existingOrderNumbers.has(orderNumber));
 
   if (duplicatesInSheet.length > 0) {
     throw appError_(
-      'DUPLICATE_ORDER_ITEM',
-      `이미 등록된 품목별 주문번호: ${[...new Set(duplicatesInSheet)].join(', ')}`,
+      'DUPLICATE_ORDER',
+      `이미 등록된 주문번호: ${[...new Set(duplicatesInSheet)].join(', ')}`,
       'DUPLICATE_CHECK',
     );
   }

@@ -84,7 +84,7 @@ function processOrderFile(file) {
       throw inventoryError;
     }
 
-    checkDuplicateOrderItems(parsedCsv.rows);
+    checkDuplicateOrders(parsedCsv.rows);
 
     // 주문/주문상품은 별도 시트에 저장하므로, 부분 실패를 대비해 시작 행을 기억한다.
     const groupedOrders = groupOrdersByOrderNumber(parsedCsv.rows);

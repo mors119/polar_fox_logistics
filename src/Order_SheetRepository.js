@@ -255,9 +255,9 @@ function getExistingValueSet_(sheet, headerName) {
   return values;
 }
 
-// 품목별 주문번호 중복 검사용 래퍼 함수다.
-function getExistingOrderItemNumbers_() {
-  return getExistingValueSet_(getSheet_(ORDER_CONFIG.sheets.orderItems), '품목별 주문번호');
+// 주문번호 중복 검사용 래퍼 함수다.
+function getExistingOrderNumbers_() {
+  return getExistingValueSet_(getSheet_(ORDER_CONFIG.sheets.orders), '주문번호');
 }
 
 // 헤더명 -> 컬럼 번호 매핑을 만들어 동적 시트 접근에 사용한다.

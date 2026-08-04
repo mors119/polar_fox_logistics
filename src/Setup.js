@@ -4,6 +4,7 @@ function setupSystem() {
   lock.waitLock(30000);
 
   try {
+    const warnings = [];
     const rootFolder = getRootFolder_();
     const spreadsheet = getOrCreateSpreadsheet_();
     const productInput = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
@@ -19,15 +20,16 @@ function setupSystem() {
     ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
-    ensureOrderItemCheckboxColumn_(spreadsheet);
+    ensureSheet_(spreadsheet, CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     SpreadsheetApp.flush();
 
-    ensureTrigger_();
-    ensureOrderTrigger_();
-    ensureOrderEditTrigger_(spreadsheet);
-    ensureConfiguredBackupTrigger_();
+    runSetupTask_(() => ensureTrigger_(), warnings, '상품 스캔 트리거 생성');
+    runSetupTask_(() => ensureOrderTrigger_(), warnings, '주문 스캔 트리거 생성');
+    runSetupTask_(() => ensureOrderEditTrigger_(spreadsheet), warnings, '주문 체크박스 편집 트리거 생성');
+    runSetupTask_(() => ensureConfiguredBackupTrigger_(), warnings, '백업 트리거 생성');
 
     const result = {
       rootFolderUrl: rootFolder.getUrl(),
@@ -37,12 +39,25 @@ function setupSystem() {
       errorFolderUrl: errorFolder.getUrl(),
       spreadsheetUrl: spreadsheet.getUrl(),
       sheetNames: spreadsheet.getSheets().map((sheet) => sheet.getName()),
+      warnings,
     };
 
     console.log(JSON.stringify(result, null, 2));
     return result;
   } finally {
     lock.releaseLock();
+  }
+}
+
+// setup 중 시트 생성은 계속 진행하고, 트리거나 설정 오류는 경고로만 수집한다.
+function runSetupTask_(fn, warnings, label) {
+  try {
+    return fn();
+  } catch (error) {
+    const message = `${label} 실패: ${error.message || String(error)}`;
+    console.warn(message);
+    warnings.push(message);
+    return null;
   }
 }
 
@@ -157,7 +172,14 @@ function ensureSheet_(spreadsheet, sheetName, headers) {
     sheet = spreadsheet.insertSheet(sheetName);
   }
 
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  const normalizedHeaders = uniqueOrderedHeaders_(headers);
+  const lastColumn = Math.max(sheet.getLastColumn(), normalizedHeaders.length);
+
+  if (lastColumn > 0) {
+    sheet.getRange(1, 1, 1, lastColumn).clearContent();
+  }
+
+  sheet.getRange(1, 1, 1, normalizedHeaders.length).setValues([normalizedHeaders]);
   sheet.setFrozenRows(1);
 }
 
@@ -273,33 +295,6 @@ function ensureTrigger_() {
     .create();
 }
 
-// 주문상품 시트 첫 번째 열은 현장 체크용 체크박스로 고정한다.
-function ensureOrderItemCheckboxColumn_(spreadsheet) {
-  const sheet = spreadsheet.getSheetByName(ORDER_CONFIG.sheets.orderItems);
-
-  if (!sheet) {
-    return;
-  }
-
-  sheet.getRange(1, 1).setValue(ORDER_ITEM_SHEET_HEADERS[0]);
-
-  if (sheet.getMaxRows() > 1) {
-    sheet.getRange(2, 1, sheet.getMaxRows() - 1, 1).insertCheckboxes();
-  }
-}
-
-// standalone 프로젝트에서도 주문상품 체크박스 편집을 잡기 위해 설치형 onEdit 트리거를 만든다.
-function ensureOrderEditTrigger_(spreadsheet) {
-  ScriptApp.getProjectTriggers()
-    .filter((trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.editTriggerHandler)
-    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
-
-  ScriptApp.newTrigger(ORDER_CONFIG.editTriggerHandler)
-    .forSpreadsheet(spreadsheet)
-    .onEdit()
-    .create();
-}
-
 // 주문 트리거는 중복 생성되지 않도록 기존 것을 지우고 다시 만든다.
 function ensureOrderTrigger_() {
   const settings = getSettingsMap_();
@@ -319,6 +314,18 @@ function ensureOrderTrigger_() {
     .create();
 }
 
+// standalone 프로젝트에서도 주문상품 체크박스 편집을 잡기 위해 설치형 onEdit 트리거를 만든다.
+function ensureOrderEditTrigger_(spreadsheet) {
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.editTriggerHandler)
+    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
+
+  ScriptApp.newTrigger(ORDER_CONFIG.editTriggerHandler)
+    .forSpreadsheet(spreadsheet)
+    .onEdit()
+    .create();
+}
+
 // 공용 오류/이력 시트는 기존 헤더를 보존하면서 필요한 컬럼만 추가한다.
 function ensureSheetContainsHeaders_(spreadsheet, sheetName, requiredHeaders) {
   let sheet = spreadsheet.getSheetByName(sheetName);
@@ -333,20 +340,43 @@ function ensureSheetContainsHeaders_(spreadsheet, sheetName, requiredHeaders) {
       ? sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].map(normalizeHeader_)
       : [];
 
-  const mergedHeaders = existingHeaders.slice();
-  requiredHeaders.forEach((header) => {
+  const mergedHeaders = uniqueOrderedHeaders_(existingHeaders);
+  uniqueOrderedHeaders_(requiredHeaders).forEach((header) => {
     if (!mergedHeaders.includes(header)) {
       mergedHeaders.push(header);
     }
   });
 
   if (mergedHeaders.length === 0) {
-    mergedHeaders.push(...requiredHeaders);
+    mergedHeaders.push(...uniqueOrderedHeaders_(requiredHeaders));
+  }
+
+  if (lastColumn > 0) {
+    sheet.getRange(1, 1, 1, lastColumn).clearContent();
   }
 
   sheet.getRange(1, 1, 1, mergedHeaders.length).setValues([mergedHeaders]);
   sheet.setFrozenRows(1);
   return sheet;
+}
+
+// 헤더는 순서를 유지하면서 중복과 빈 값을 제거한다.
+function uniqueOrderedHeaders_(headers) {
+  const seen = new Set();
+  const result = [];
+
+  (headers || []).forEach((header) => {
+    const normalized = normalizeHeader_(header);
+
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  });
+
+  return result;
 }
 
 // 설정 시트의 백업 요일/시간 값을 읽어 메일 백업 트리거를 다시 맞춘다.

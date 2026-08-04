@@ -73,8 +73,7 @@ function processCsvFile_(file) {
       throw error;
     }
 
-    // 시트 중복 검사와 실제 저장은 검증이 끝난 뒤에만 수행한다.
-    assertNoDuplicateProductCodes_(products);
+    // 실제 저장 단계에서 기존 상품은 누적 갱신하고, 없는 상품만 신규 추가한다.
     importedRows = importProducts_(file, products);
 
     appendHistory_(file, {
