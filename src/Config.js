@@ -1,7 +1,7 @@
 // 상품 CSV 처리 흐름에서 공통으로 사용하는 폴더, 시트, 트리거 설정이다.
 const CONFIG = Object.freeze({
   folders: {
-    input: 'csv_input',
+    input: 'input',
     error: 'error',
   },
   sheets: {
@@ -11,8 +11,7 @@ const CONFIG = Object.freeze({
     history: '파일처리이력',
   },
   settingsKeys: {
-    productTriggerMinutes: '상품 트리거 분',
-    orderTriggerMinutes: '주문 트리거 분',
+    inputTriggerMinutes: '입력 트리거 분',
     operatingWeekdays: '운영 요일',
     operatingStartTime: '운영 시작 시간',
     operatingEndTime: '운영 종료 시간',
@@ -25,12 +24,12 @@ const CONFIG = Object.freeze({
   properties: {
     rootFolderId: 'ROOT_FOLDER_ID',
     spreadsheetId: 'OPERATIONS_SPREADSHEET_ID',
-    inputFolderId: 'CSV_INPUT_FOLDER_ID',
+    inputFolderId: 'INPUT_FOLDER_ID',
     errorFolderId: 'ERROR_FOLDER_ID',
   },
   backupExportMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   spreadsheetName: 'polar_fox_logistics',
-  triggerHandler: 'scanCsvInputFolder',
+  triggerHandler: 'scanInputFolder',
   backupTriggerHandler: 'sendConfiguredBackupEmail',
   triggerMinutes: 5,
 });
@@ -87,8 +86,7 @@ const PRODUCT_SHEET_HEADERS = Object.freeze([
 
 // 설정 시트에서 사용자 입력을 받을 기본 행이다.
 const SETTINGS_SHEET_ROWS = Object.freeze([
-  ['상품 트리거 분', '30', '허용값: 1, 5, 10, 15, 30'],
-  ['주문 트리거 분', '30', '허용값: 1, 5, 10, 15, 30'],
+  ['입력 트리거 분', '30', '상품/주문 공통. 허용값: 1, 5, 10, 15, 30'],
   ['운영 요일', '월,화,수,목,금', '쉼표로 구분. 예: 월,화,수,목,금 또는 매일'],
   ['운영 시작 시간', '09:00', '24시간 형식 HH:mm 예: 09:00'],
   ['운영 종료 시간', '18:00', '24시간 형식 HH:mm 예: 18:00'],

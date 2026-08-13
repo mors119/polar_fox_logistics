@@ -32,6 +32,7 @@
 
 ## 검증
 
+- `src/Main.js`
 - `src/CsvVaildation.js`
 - `src/Order_CsvParser.js`
 - `src/Order_Validator.js`
@@ -39,6 +40,7 @@
 
 역할:
 
+- 상품/주문 입력 유형 판별
 - CSV 파싱
 - 헤더 유효성 검사
 - 데이터 형식 검사

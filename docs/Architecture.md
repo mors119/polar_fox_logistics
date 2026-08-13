@@ -4,10 +4,15 @@
 
 이 프로젝트는 계층형 프레임워크가 아니라, Google Apps Script 전역 함수 파일을 역할별로 분리한 구조입니다.
 
-핵심 흐름은 두 개입니다.
+공통 입력 판별 뒤에 두 개의 처리 흐름으로 나뉩니다.
 
+- 공통 입력 파일 판별
 - 상품 CSV 처리
 - 주문 CSV 처리
+
+공통 진입 흐름:
+
+`scanInputFolder() -> routeInputFile_() -> 헤더 판별 -> 상품 또는 주문 처리`
 
 ## 상품 CSV 처리 구조
 
@@ -19,7 +24,7 @@
 
 실행 흐름:
 
-`scanCsvInputFolder() -> processCsvFile_() -> parse/validate -> duplicate check -> import -> move file -> history`
+`processCsvFile_() -> validate -> duplicate check -> import -> move file -> history`
 
 ## 주문 CSV 처리 구조
 
@@ -34,11 +39,12 @@
 
 실행 흐름:
 
-`scanOrderFolder() -> processOrderFile() -> parse/validate -> duplicate check -> import orders -> import order items -> move file -> history`
+`processOrderFile() -> validate -> duplicate check -> import orders -> import order items -> move file -> history`
 
 ## 공통 특성
 
 - 파일 단위로 처리합니다.
+- 상품과 주문은 동일한 `input` 폴더와 단일 시간 기반 트리거를 사용합니다.
 - 성공 시 완료 폴더로 이동합니다.
 - 실패 시 오류 폴더로 이동합니다.
 - 시간 기반 트리거로 자동 실행 가능합니다.

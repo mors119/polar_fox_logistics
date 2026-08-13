@@ -6,12 +6,13 @@
 2. Script Properties에 `ROOT_FOLDER_ID` 저장
 3. `setupSystem()` 실행
 4. 생성된 입력 폴더와 운영 스프레드시트 확인
-5. 샘플 CSV 업로드 후 `scanCsvInputFolder()` 또는 `scanOrderFolder()` 테스트
+5. 샘플 파일 업로드 후 `scanInputFolder()` 테스트
+
+기존 버전에서 업데이트한 경우 `setupSystem()`을 다시 실행하고, 기존 `csv_input`과 `order_csv_input`에 남은 파일을 새 `input` 폴더로 직접 옮깁니다. 기존 폴더와 파일은 자동 삭제되지 않습니다.
 
 ## 생성되어야 하는 폴더
 
-- `csv_input`
-- `order_csv_input`
+- `input`
 - `error`
 
 ## 생성되어야 하는 시트
@@ -26,15 +27,14 @@
 
 ## 파일 투입 위치
 
-- 상품 CSV: `csv_input`
-- 주문 CSV: `order_csv_input`
+- 상품/주문 파일: `input`
 
-다른 폴더에 넣으면 처리되지 않습니다.
+첫 행의 필수 헤더를 기준으로 상품 또는 주문 흐름으로 자동 분기합니다.
 
 ## 자주 발생하는 실수
 
 - `sample_order.cvs`처럼 확장자를 잘못 올림
-- 주문 파일을 `csv_input`에 넣음
+- 주문과 상품 필수 헤더가 한 파일에 섞여 유형 판별에 실패함
 - `ROOT_FOLDER_ID`를 넣지 않고 `setupSystem()` 실행
 - `setupSystem()` 실행 후 반환된 폴더 URL을 확인하지 않음
 

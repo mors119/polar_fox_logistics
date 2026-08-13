@@ -1,20 +1,12 @@
 // 주문 CSV 처리 흐름에서 사용하는 폴더, 시트, 트리거 설정이다.
 const ORDER_CONFIG = Object.freeze({
-  folders: {
-    input: 'order_csv_input',
-  },
   sheets: {
     orders: '주문',
     orderItems: '주문상품',
     errors: CONFIG.sheets.errors,
     history: CONFIG.sheets.history,
   },
-  properties: {
-    inputFolderId: 'ORDER_CSV_INPUT_FOLDER_ID',
-  },
-  triggerHandler: 'scanOrderFolder',
   editTriggerHandler: 'handleOrderItemCheckboxEdit',
-  triggerMinutes: 5,
   defaultOrderStatus: '신규',
   defaultOrderItemStatus: '등록완료',
   shippedOrderItemStatus: '출고완료',
