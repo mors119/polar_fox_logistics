@@ -7,9 +7,10 @@ const ORDER_CONFIG = Object.freeze({
     history: CONFIG.sheets.history,
   },
   editTriggerHandler: 'handleOrderItemCheckboxEdit',
-  defaultOrderStatus: '신규',
+  defaultOrderStatus: '출고대기',
   defaultOrderItemStatus: '등록완료',
   shippedOrderItemStatus: '출고완료',
+  partiallyShippedOrderStatus: '부분출고',
   defaultErrorStatus: '미처리',
 });
 

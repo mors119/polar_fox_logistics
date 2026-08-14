@@ -20,6 +20,7 @@
 - `src/Main.js`: 파일 순회와 메인 제어
 - `src/CsvVaildation.js`: CSV 파싱, 헤더 검사, 행 검사
 - `src/Productimport.js`: 상품마스터 시트 중복 검사와 적재
+- `src/InventoryService.js`: 재고 지표 계산과 변동 이력 기록
 - `src/HistoryAndError.js`: 오류/이력 기록, 공통 시트 접근
 
 실행 흐름:
@@ -40,6 +41,12 @@
 실행 흐름:
 
 `processOrderFile() -> validate -> duplicate check -> import orders -> import order items -> move file -> history`
+
+재고 흐름:
+
+`신규/재입고 -> 가용재고 증가 -> 주문등록 -> 발송대기 증가 -> 출고완료 -> 가용재고·발송대기 감소`
+
+`출고후잔량 = 가용재고 - 발송대기`이며, 잔량이 안전재고 이하가 되면 상품마스터의 `재고상태`에 표시됩니다.
 
 ## 공통 특성
 

@@ -7,6 +7,7 @@ const CONFIG = Object.freeze({
   sheets: {
     settings: '설정',
     products: '상품마스터',
+    inventoryHistory: '재고이력',
     errors: '오류목록',
     history: '파일처리이력',
   },
@@ -26,6 +27,7 @@ const CONFIG = Object.freeze({
     spreadsheetId: 'OPERATIONS_SPREADSHEET_ID',
     inputFolderId: 'INPUT_FOLDER_ID',
     errorFolderId: 'ERROR_FOLDER_ID',
+    inventoryModelVersion: 'INVENTORY_MODEL_VERSION',
   },
   backupExportMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   spreadsheetName: 'polar_fox_logistics',
@@ -82,6 +84,28 @@ const PRODUCT_SHEET_HEADERS = Object.freeze([
   '원본파일ID',
   '원본파일명',
   '등록일시',
+  '재고상태',
+]);
+
+// 재고를 직접 증감하는 필드와 설정값처럼 덮어쓰는 숫자 필드를 구분한다.
+const ADDITIVE_PRODUCT_HEADERS = Object.freeze(['가용재고', '불량재고']);
+const SYSTEM_MANAGED_PRODUCT_HEADERS = Object.freeze(['발송대기', '출고후잔량']);
+
+// 재고 변동은 파일 처리 이력과 분리해 상품 단위로 추적한다.
+const INVENTORY_HISTORY_HEADERS = Object.freeze([
+  '일시',
+  '유형',
+  '상품품목코드',
+  '상품명',
+  '옵션',
+  '가용재고변화량',
+  '발송대기변화량',
+  '처리후가용재고',
+  '처리후발송대기',
+  '관련주문번호',
+  '관련품목주문번호',
+  '원본파일명',
+  '비고',
 ]);
 
 // 설정 시트에서 사용자 입력을 받을 기본 행이다.

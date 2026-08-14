@@ -14,6 +14,8 @@ function processOrderFile(file, parsedTable) {
     orderItemStartRow: 0,
     orderItemRowCount: 0,
     productStockSnapshots: [],
+    inventoryHistoryStartRow: 0,
+    inventoryHistoryRowCount: 0,
   };
 
   try {
@@ -69,7 +71,10 @@ function processOrderFile(file, parsedTable) {
     rollbackContext.orderItemStartRow = importedOrderItems.orderItemStartRow;
     rollbackContext.orderItemRowCount = importedOrderItems.orderItemRowCount;
 
-    rollbackContext.productStockSnapshots = applyOrderInventoryAdjustments_(parsedCsv.rows);
+    const inventoryAdjustment = applyOrderInventoryAdjustments_(parsedCsv.rows, file);
+    rollbackContext.productStockSnapshots = inventoryAdjustment.snapshots;
+    rollbackContext.inventoryHistoryStartRow = inventoryAdjustment.historyStartRow;
+    rollbackContext.inventoryHistoryRowCount = inventoryAdjustment.historyRowCount;
 
     finalizeOrderFileHistory_(file, {
       rowNumber: historyContext.rowNumber,

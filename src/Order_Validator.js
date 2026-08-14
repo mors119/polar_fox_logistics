@@ -236,7 +236,7 @@ function validateOrderInventory_(rows) {
     }
 
     const requestedQuantity = requestedQuantityMap[productCode];
-    if (requestedQuantity > productStock.availableStock) {
+    if (requestedQuantity > productStock.remainingStock) {
       rowsByProductCode[productCode].forEach((row) => {
         errors.push(
           buildOrderRowError_(
@@ -244,7 +244,7 @@ function validateOrderInventory_(rows) {
             getTrimmedField_(row, '주문번호'),
             getTrimmedField_(row, '품목별 주문번호'),
             'INSUFFICIENT_STOCK',
-            `재고 부족: ${productCode} 주문합계 ${requestedQuantity}, 가용재고 ${productStock.availableStock}`,
+            `재고 부족: ${productCode} 주문합계 ${requestedQuantity}, 출고후잔량 ${productStock.remainingStock}`,
           ),
         );
       });
@@ -267,9 +267,14 @@ function buildProductStockMap_(records) {
     }
 
     const availableStock = parseNumberField_(getRecordValueByAliases_(record, '가용재고'));
+    const pendingStock = parseNumberField_(getRecordValueByAliases_(record, '발송대기'));
+    const normalizedAvailableStock = availableStock === null ? 0 : availableStock;
+    const normalizedPendingStock = pendingStock === null ? 0 : pendingStock;
 
     result[productCode] = {
-      availableStock: availableStock === null ? 0 : availableStock,
+      availableStock: normalizedAvailableStock,
+      pendingStock: normalizedPendingStock,
+      remainingStock: normalizedAvailableStock - normalizedPendingStock,
     };
     return result;
   }, {});

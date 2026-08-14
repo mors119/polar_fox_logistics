@@ -14,12 +14,14 @@ function setupSystem() {
 
     // 상품/주문 흐름은 초기화 시점에 필요한 시트와 헤더를 모두 강제로 맞춘다.
     ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inventoryHistory, INVENTORY_HISTORY_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
     ensureSheet_(spreadsheet, CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheet_(spreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    migrateInventoryModel_();
     SpreadsheetApp.flush();
 
     runSetupTask_(() => ensureTrigger_(), warnings, '입력 스캔 트리거 생성');
