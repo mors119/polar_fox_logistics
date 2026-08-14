@@ -12,6 +12,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
+    "typecheck": "echo \"No typecheck step is required for this JavaScript project\"",
     "pull": "clasp pull",
     "push": "clasp push"
   },
