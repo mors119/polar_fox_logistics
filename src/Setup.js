@@ -34,7 +34,11 @@ function setupSystem() {
     SpreadsheetApp.flush();
 
     runSetupTask_(() => ensureTrigger_(), warnings, '입력 스캔 트리거 생성');
-    runSetupTask_(() => ensureOrderEditTrigger_(spreadsheet), warnings, '주문 체크박스 편집 트리거 생성');
+    runSetupTask_(
+      () => ensureOrderEditTrigger_(spreadsheet),
+      warnings,
+      '주문 체크박스 편집 트리거 생성',
+    );
     runSetupTask_(() => ensurePickingTrigger_(), warnings, '피킹 반영 트리거 생성');
     runSetupTask_(() => ensureConfiguredBackupTrigger_(), warnings, '백업 트리거 생성');
 
@@ -330,7 +334,10 @@ function applySettingsSheetFormats_(sheet) {
     return;
   }
 
-  const labels = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues().flat();
+  const labels = sheet
+    .getRange(2, 1, lastRow - 1, 1)
+    .getDisplayValues()
+    .flat();
 
   labels.forEach((label, index) => {
     const rowNumber = index + 2;
@@ -374,10 +381,7 @@ function ensureTrigger_() {
     )
     .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
 
-  ScriptApp.newTrigger(CONFIG.triggerHandler)
-    .timeBased()
-    .everyMinutes(triggerMinutes)
-    .create();
+  ScriptApp.newTrigger(CONFIG.triggerHandler).timeBased().everyMinutes(triggerMinutes).create();
 }
 
 // standalone 프로젝트에서도 주문상품 체크박스 편집을 잡기 위해 설치형 onEdit 트리거를 만든다.
@@ -579,9 +583,7 @@ function parseRecurringTriggerMinutes_(value, fallback, settingLabel) {
   const minutes = Number(normalized);
 
   if (!Number.isInteger(minutes) || !allowedValues.includes(minutes)) {
-    throw new Error(
-      `${settingLabel} 값은 ${allowedValues.join(', ')} 중 하나여야 합니다.`,
-    );
+    throw new Error(`${settingLabel} 값은 ${allowedValues.join(', ')} 중 하나여야 합니다.`);
   }
 
   return minutes;
@@ -589,12 +591,14 @@ function parseRecurringTriggerMinutes_(value, fallback, settingLabel) {
 
 // 요일 설정은 매일 또는 쉼표 구분 다중 요일을 허용한다.
 function parseWeekdayValues_(value, settingLabel) {
-  const normalizedValues = [...new Set(
-    String(value || '')
-      .split(/[\n,]/)
-      .map((weekday) => weekday.trim())
-      .filter(Boolean),
-  )];
+  const normalizedValues = [
+    ...new Set(
+      String(value || '')
+        .split(/[\n,]/)
+        .map((weekday) => weekday.trim())
+        .filter(Boolean),
+    ),
+  ];
 
   if (normalizedValues.length === 0) {
     return [];
