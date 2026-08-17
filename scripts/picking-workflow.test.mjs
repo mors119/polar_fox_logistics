@@ -10,6 +10,7 @@ const context = vm.createContext({ console, Date });
   'src/Order_Config.js',
   'src/Order_SheetRepository.js',
   'src/InventoryService.js',
+  'src/Dashboard.js',
   'src/InboundWorkflow.js',
   'src/PickingWorkflow.js',
 ].forEach((filePath) => {
@@ -44,6 +45,20 @@ test('피킹 담당자를 설정한 주문 건수마다 순환 배정한다', ()
 test('피킹 확인값은 대소문자와 공백을 정규화한다', () => {
   assert.equal(evaluate("normalizePickingConfirmation_(' o ')"), 'O');
   assert.equal(evaluate("normalizePickingConfirmation_('x')"), 'X');
+});
+
+test('최신 피킹 표시 헤더를 사용한다', () => {
+  assert.equal(evaluate('PICKING_HEADER_HEADERS[2]'), '카트 슬롯');
+  assert.equal(evaluate('PICKING_HEADER_HEADERS[6]'), '상태(대기/진행/완료/예외)');
+  assert.equal(evaluate('PICKING_LINE_HEADERS[2]'), '상품코드');
+  assert.equal(evaluate('LATEST_COMPLETED_ORDER_HEADERS[1]'), '쇼핑몰번호');
+  assert.equal(evaluate('LATEST_COMPLETED_ORDER_HEADERS[8]'), '주문상품명(기본)');
+});
+
+test('대시보드 진행률 막대를 범위 안에서 만든다', () => {
+  assert.equal(evaluate('buildDashboardProgressBar_(50, 10)'), '█████░░░░░');
+  assert.equal(evaluate('buildDashboardProgressBar_(120, 4)'), '████');
+  assert.equal(evaluate('buildDashboardProgressBar_(-1, 4)'), '░░░░');
 });
 
 test('담당자별 주문수는 1 이상 정수만 허용한다', () => {

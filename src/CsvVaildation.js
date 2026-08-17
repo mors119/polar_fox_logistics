@@ -104,7 +104,12 @@ function validateHeaders_(headers) {
     throw appError_('MISSING_HEADER', `필수 헤더 누락: ${missing.join(', ')}`, 'HEADER_VALIDATION');
   }
 
-  const unknown = headers.filter((header) => header && !PRODUCT_HEADERS.includes(header));
+  const unknown = headers.filter(
+    (header) =>
+      header &&
+      !PRODUCT_HEADERS.includes(header) &&
+      !PRODUCT_IGNORED_IMPORT_HEADERS.includes(header),
+  );
   if (unknown.length > 0) {
     throw appError_(
       'UNKNOWN_HEADER',

@@ -35,7 +35,27 @@ const ORDER_CSV_HEADERS = Object.freeze([
   '수령인 휴대전화',
   '수령인 우편번호',
   '수령인 주소',
+  '출고완료',
+  '피킹지시번호',
+  '주문상태',
+  '취소사유',
+  '취소일시',
 ]);
+
+const ORDER_IMPORT_HEADER_ALIASES = Object.freeze({
+  쇼핑몰번호: '쇼핑몰 번호',
+  배송메시지: '배송메세지',
+  '총 주문금액(KRW)': '총주문금액',
+  '총 결제금액(KRW)': '결제금액',
+  '주문상품명(기본)': '주문상품명',
+  '상품옵션(기본)': '상품옵션',
+  '수령인 주소(전체)': '수령인 주소',
+});
+
+function normalizeOrderImportHeader_(value) {
+  const header = normalizeHeader_(value);
+  return ORDER_IMPORT_HEADER_ALIASES[header] || header;
+}
 
 // 주문 적재를 위해 반드시 필요한 헤더만 별도로 정의한다.
 const REQUIRED_ORDER_HEADERS = Object.freeze([
@@ -86,6 +106,30 @@ const ORDER_ITEM_SHEET_HEADERS = Object.freeze([
   '원본파일명',
   '등록일시',
   '처리메모',
+]);
+
+const LATEST_COMPLETED_ORDER_HEADERS = Object.freeze([
+  '쇼핑몰',
+  '쇼핑몰번호',
+  '주문번호',
+  '품목별 주문번호',
+  '배송메시지',
+  '총 주문금액(KRW)',
+  '총 결제금액(KRW)',
+  '상품품목코드',
+  '주문상품명(기본)',
+  '상품옵션(기본)',
+  '수량',
+  '판매가',
+  '수령인',
+  '수령인 휴대전화',
+  '수령인 우편번호',
+  '수령인 주소(전체)',
+  '출고완료',
+  '피킹지시번호',
+  '주문상태',
+  '취소사유',
+  '취소일시',
 ]);
 
 // 주문 오류 로그는 주문번호와 품목별 주문번호를 함께 보관한다.

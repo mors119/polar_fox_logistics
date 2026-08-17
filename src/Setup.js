@@ -6,36 +6,78 @@ function setupSystem() {
   try {
     const warnings = [];
     const rootFolder = getRootFolder_();
-    const spreadsheet = getOrCreateSpreadsheet_();
+    const legacySpreadsheet = getLegacySpreadsheetForMigration_();
+    const spreadsheets = getOrCreateSystemSpreadsheets_();
+    const mainSpreadsheet = spreadsheets.main;
+    const inboundSpreadsheet = spreadsheets.inbound;
+    const pickingSpreadsheet = spreadsheets.picking;
+    const dashboardSpreadsheet = spreadsheets.dashboard;
     const inputFolder = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
+    const successFolder = getOrCreateFolder_(
+      CONFIG.properties.successFolderId,
+      CONFIG.folders.success,
+    );
     const errorFolder = getOrCreateFolder_(CONFIG.properties.errorFolderId, CONFIG.folders.error);
 
-    ensureSettingsSheet_(spreadsheet);
+    seedSystemSheetsFromLegacy_(spreadsheets, legacySpreadsheet);
+    ensureSettingsSheet_(mainSpreadsheet);
 
-    // 상품/주문 흐름은 초기화 시점에 필요한 시트와 헤더를 모두 강제로 맞춘다.
-    ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.productRegistration, PRODUCT_REGISTRATION_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.inboundPending, INBOUND_WORK_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.inboundCompleted, INBOUND_WORK_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.inboundErrors, INBOUND_WORK_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.pickingHeaders, PICKING_HEADER_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.pickingLines, PICKING_LINE_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.pickingDashboard, ['피킹 운영 대시보드']);
-    ensureSheet_(spreadsheet, CONFIG.sheets.inventoryHistory, INVENTORY_HISTORY_HEADERS);
-    ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
-    ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
-    ensureSheet_(spreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
-    ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
-    ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
-    applyInboundWorkflowFormats_(spreadsheet);
-    applyPickingWorkflowFormats_(spreadsheet);
+    // 메인 데이터, 작업 시트, 조회 화면을 물리적으로 다른 스프레드시트에 만든다.
+    ensureSheetWithMappedHeaders_(mainSpreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
+    ensureSheet_(mainSpreadsheet, CONFIG.sheets.inventoryHistory, INVENTORY_HISTORY_HEADERS);
+    ensureSheet_(mainSpreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
+    ensureSheet_(mainSpreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
+    ensureSheet_(mainSpreadsheet, CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+    ensureSheet_(mainSpreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    ensureSheetContainsHeaders_(mainSpreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+    ensureSheetContainsHeaders_(mainSpreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+
+    ensureSheet_(
+      inboundSpreadsheet,
+      CONFIG.sheets.productRegistration,
+      PRODUCT_REGISTRATION_HEADERS,
+    );
+    ensureSheet_(inboundSpreadsheet, CONFIG.sheets.inboundPending, INBOUND_WORK_HEADERS);
+    ensureSheet_(inboundSpreadsheet, CONFIG.sheets.inboundCompleted, INBOUND_WORK_HEADERS);
+    ensureSheet_(inboundSpreadsheet, CONFIG.sheets.inboundErrors, INBOUND_WORK_HEADERS);
+
+    ensureSheet_(pickingSpreadsheet, CONFIG.sheets.pickingHeaders, PICKING_HEADER_HEADERS);
+    ensureSheet_(pickingSpreadsheet, CONFIG.sheets.pickingLines, PICKING_LINE_HEADERS);
+
+    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.inventoryDashboard, ['📊  재고 현황']);
+    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.orderDashboard, ['📊  주문 현황']);
+    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.pickingDashboard, ['📦  피킹 현황']);
+    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.crossCheckDashboard, ['🔗  교차검증']);
+    ensureSheet_(
+      dashboardSpreadsheet,
+      CONFIG.sheets.completedOrders,
+      LATEST_COMPLETED_ORDER_HEADERS,
+    );
+
+    applyInboundWorkflowFormats_(mainSpreadsheet, inboundSpreadsheet);
+    applyPickingWorkflowFormats_(pickingSpreadsheet);
+    Object.values(spreadsheets).forEach((spreadsheet) => applyOperationsSheetUi_(spreadsheet));
     migrateInventoryModel_();
     SpreadsheetApp.flush();
+    runSetupTask_(() => refreshOperationsDashboards_(), warnings, '운영 대시보드 생성');
+    Object.values(spreadsheets).forEach((spreadsheet) => removeUnusedDefaultSheets_(spreadsheet));
+    runSetupTask_(
+      () =>
+        protectSystemSpreadsheet_(mainSpreadsheet, '메인 데이터 수정 금지', [
+          CONFIG.sheets.settings,
+        ]),
+      warnings,
+      '메인 데이터 보호',
+    );
+    runSetupTask_(
+      () => protectSystemSpreadsheet_(dashboardSpreadsheet, '대시보드 조회 전용'),
+      warnings,
+      '대시보드 보호',
+    );
 
     runSetupTask_(() => ensureTrigger_(), warnings, '입력 스캔 트리거 생성');
     runSetupTask_(
-      () => ensureOrderEditTrigger_(spreadsheet),
+      () => ensureOrderEditTrigger_(mainSpreadsheet),
       warnings,
       '주문 체크박스 편집 트리거 생성',
     );
@@ -44,11 +86,21 @@ function setupSystem() {
 
     const result = {
       rootFolderUrl: rootFolder.getUrl(),
-      spreadsheetId: spreadsheet.getId(),
+      spreadsheetId: mainSpreadsheet.getId(),
+      files: Object.keys(spreadsheets).reduce((result, group) => {
+        result[group] = {
+          id: spreadsheets[group].getId(),
+          name: spreadsheets[group].getName(),
+          url: spreadsheets[group].getUrl(),
+          sheets: spreadsheets[group].getSheets().map((sheet) => sheet.getName()),
+        };
+        return result;
+      }, {}),
       inputFolderUrl: inputFolder.getUrl(),
+      successFolderUrl: successFolder.getUrl(),
       errorFolderUrl: errorFolder.getUrl(),
-      spreadsheetUrl: spreadsheet.getUrl(),
-      sheetNames: spreadsheet.getSheets().map((sheet) => sheet.getName()),
+      spreadsheetUrl: mainSpreadsheet.getUrl(),
+      sheetNames: mainSpreadsheet.getSheets().map((sheet) => sheet.getName()),
       warnings,
     };
 
@@ -84,10 +136,39 @@ function getRootFolder_() {
   return DriveApp.getFolderById(rootFolderId);
 }
 
-// 운영용 스프레드시트를 가져오거나, 없으면 새로 만든 뒤 상위 폴더 아래로 옮긴다.
-function getOrCreateSpreadsheet_() {
+// 과거 통합 파일은 새 파일들의 초기 데이터 원본으로만 읽고 삭제하지 않는다.
+function getLegacySpreadsheetForMigration_() {
+  const legacyId = PropertiesService.getScriptProperties().getProperty(
+    CONFIG.properties.spreadsheetId,
+  );
+  if (!legacyId) return null;
+  try {
+    return SpreadsheetApp.openById(legacyId);
+  } catch (error) {
+    console.warn('기존 통합 스프레드시트를 열 수 없어 신규 파일만 생성합니다.');
+    return null;
+  }
+}
+
+function getOrCreateSystemSpreadsheets_() {
+  const spreadsheets = {};
+  Object.keys(CONFIG.spreadsheetFiles).forEach((group) => {
+    spreadsheets[group] = getOrCreateSpreadsheetFile_(
+      SPREADSHEET_GROUP_PROPERTIES[group],
+      CONFIG.spreadsheetFiles[group],
+    );
+  });
+  PropertiesService.getScriptProperties().setProperty(
+    CONFIG.properties.spreadsheetId,
+    spreadsheets.main.getId(),
+  );
+  return spreadsheets;
+}
+
+// 운영용 스프레드시트를 가져오거나, 없으면 실제 Drive 파일로 생성한다.
+function getOrCreateSpreadsheetFile_(propertyKey, spreadsheetName) {
   const properties = PropertiesService.getScriptProperties();
-  const savedId = properties.getProperty(CONFIG.properties.spreadsheetId);
+  const savedId = properties.getProperty(propertyKey);
 
   if (savedId) {
     try {
@@ -95,26 +176,33 @@ function getOrCreateSpreadsheet_() {
       ensureFileInRootFolder_(DriveApp.getFileById(spreadsheet.getId()));
       return spreadsheet;
     } catch (error) {
-      console.warn(`기존 스프레드시트 ID를 사용할 수 없습니다: ${CONFIG.properties.spreadsheetId}`);
+      console.warn(`기존 스프레드시트 ID를 사용할 수 없습니다: ${propertyKey}`);
     }
   }
 
-  const existingSpreadsheet = findExistingRootSpreadsheet_();
+  const existingSpreadsheet = findRootSpreadsheetByName_(spreadsheetName);
   if (existingSpreadsheet) {
-    properties.setProperty(CONFIG.properties.spreadsheetId, existingSpreadsheet.getId());
+    properties.setProperty(propertyKey, existingSpreadsheet.getId());
     ensureFileInRootFolder_(DriveApp.getFileById(existingSpreadsheet.getId()));
     return existingSpreadsheet;
   }
 
-  const spreadsheet = SpreadsheetApp.create(CONFIG.spreadsheetName);
+  const spreadsheet = SpreadsheetApp.create(spreadsheetName);
   ensureFileInRootFolder_(DriveApp.getFileById(spreadsheet.getId()));
-  properties.setProperty(CONFIG.properties.spreadsheetId, spreadsheet.getId());
+  properties.setProperty(propertyKey, spreadsheet.getId());
   return spreadsheet;
 }
 
-// 루트 폴더에 이미 같은 이름의 운영 스프레드시트가 있으면 재사용한다.
-function findExistingRootSpreadsheet_() {
-  const files = getRootFolder_().getFilesByName(CONFIG.spreadsheetName);
+// 기존 호출은 메인 데이터 파일을 반환해 하위 호환을 유지한다.
+function getOrCreateSpreadsheet_() {
+  return getOrCreateSpreadsheetFile_(
+    CONFIG.properties.mainSpreadsheetId,
+    CONFIG.spreadsheetFiles.main,
+  );
+}
+
+function findRootSpreadsheetByName_(spreadsheetName) {
+  const files = getRootFolder_().getFilesByName(spreadsheetName);
 
   while (files.hasNext()) {
     const file = files.next();
@@ -125,6 +213,58 @@ function findExistingRootSpreadsheet_() {
   }
 
   return null;
+}
+
+function seedSystemSheetsFromLegacy_(spreadsheets, legacySpreadsheet) {
+  if (!legacySpreadsheet) return;
+  const sheetGroups = {
+    main: [
+      CONFIG.sheets.settings,
+      CONFIG.sheets.products,
+      CONFIG.sheets.inventoryHistory,
+      ORDER_CONFIG.sheets.orders,
+      ORDER_CONFIG.sheets.orderItems,
+      CONFIG.sheets.errors,
+      CONFIG.sheets.history,
+    ],
+    inbound: [
+      CONFIG.sheets.productRegistration,
+      CONFIG.sheets.inboundPending,
+      CONFIG.sheets.inboundCompleted,
+      CONFIG.sheets.inboundErrors,
+    ],
+    picking: [CONFIG.sheets.pickingHeaders, CONFIG.sheets.pickingLines],
+    dashboard: [CONFIG.sheets.completedOrders],
+  };
+  Object.keys(sheetGroups).forEach((group) => {
+    if (spreadsheets[group].getId() === legacySpreadsheet.getId()) return;
+    sheetGroups[group].forEach((sheetName) =>
+      seedSheetFromLegacy_(spreadsheets[group], legacySpreadsheet, sheetName),
+    );
+  });
+}
+
+function seedSheetFromLegacy_(targetSpreadsheet, legacySpreadsheet, sheetName) {
+  const sourceSheet = legacySpreadsheet.getSheetByName(sheetName);
+  if (!sourceSheet || sourceSheet.getLastRow() === 0 || sourceSheet.getLastColumn() === 0) return;
+  let targetSheet = targetSpreadsheet.getSheetByName(sheetName);
+  if (targetSheet && targetSheet.getLastRow() > 1) return;
+  if (!targetSheet) targetSheet = targetSpreadsheet.insertSheet(sheetName);
+  const values = sourceSheet
+    .getRange(1, 1, sourceSheet.getLastRow(), sourceSheet.getLastColumn())
+    .getValues();
+  ensureSheetSize_(targetSheet, values.length, values[0].length);
+  targetSheet.clearContents();
+  targetSheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+}
+
+function ensureSheetSize_(sheet, rowCount, columnCount) {
+  if (sheet.getMaxRows() < rowCount) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), rowCount - sheet.getMaxRows());
+  }
+  if (sheet.getMaxColumns() < columnCount) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), columnCount - sheet.getMaxColumns());
+  }
 }
 
 // Script Properties에 저장된 폴더 ID가 있으면 재사용하고, 없으면 상위 폴더 아래에 새 폴더를 만든다.
@@ -174,6 +314,49 @@ function ensureFileInRootFolder_(file) {
   }
 }
 
+// SpreadsheetApp.create()가 만든 기본 빈 탭은 실제 업무 탭 생성 뒤 제거한다.
+function removeUnusedDefaultSheets_(spreadsheet) {
+  const defaultSheetNames = ['시트1', 'Sheet1'];
+  spreadsheet
+    .getSheets()
+    .filter(
+      (sheet) =>
+        defaultSheetNames.includes(sheet.getName()) &&
+        sheet.getLastRow() === 0 &&
+        spreadsheet.getSheets().length > 1,
+    )
+    .forEach((sheet) => spreadsheet.deleteSheet(sheet));
+}
+
+// 메인/대시보드는 실행 계정만 수정하고 작업자는 조회만 하도록 시트 보호를 건다.
+function protectSystemSpreadsheet_(spreadsheet, description, editableSheetNames) {
+  const executorEmail = getWorkflowExecutorEmail_();
+  const excludedNames = editableSheetNames || [];
+
+  spreadsheet
+    .getSheets()
+    .filter((sheet) => !excludedNames.includes(sheet.getName()))
+    .forEach((sheet) => {
+      let protection = sheet
+        .getProtections(SpreadsheetApp.ProtectionType.SHEET)
+        .find((item) => item.getDescription() === description);
+
+      if (!protection) {
+        protection = sheet.protect().setDescription(description);
+      }
+
+      protection.setWarningOnly(false);
+      if (executorEmail) {
+        protection.addEditor(executorEmail);
+        const otherEditors = protection
+          .getEditors()
+          .filter((editor) => editor.getEmail() !== executorEmail);
+        if (otherEditors.length > 0) protection.removeEditors(otherEditors);
+      }
+      if (protection.canDomainEdit()) protection.setDomainEdit(false);
+    });
+}
+
 // 운영 스프레드시트에서 시트를 찾고, 없으면 생성한 뒤 헤더를 덮어쓴다.
 function ensureSheet_(spreadsheet, sheetName, headers) {
   let sheet = spreadsheet.getSheetByName(sheetName);
@@ -193,14 +376,86 @@ function ensureSheet_(spreadsheet, sheetName, headers) {
   sheet.setFrozenRows(1);
 }
 
+// 최신 상품마스터 컬럼 순서로 바꾸되 기존 값은 헤더 별칭을 기준으로 안전하게 옮긴다.
+function ensureSheetWithMappedHeaders_(spreadsheet, sheetName, targetHeaders) {
+  let sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
+    ensureSheet_(spreadsheet, sheetName, targetHeaders);
+    return;
+  }
+
+  const sourceHeaders = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getDisplayValues()[0]
+    .map(normalizeHeader_);
+  if (
+    sourceHeaders.length === targetHeaders.length &&
+    sourceHeaders.every((header, index) => header === targetHeaders[index])
+  ) {
+    ensureSheet_(spreadsheet, sheetName, targetHeaders);
+    return;
+  }
+
+  const sourceValues =
+    sheet.getLastRow() > 1
+      ? sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues()
+      : [];
+  const mappedValues = mapSheetValuesByHeaders_(sourceHeaders, sourceValues, targetHeaders);
+
+  if (sheet.getMaxColumns() < targetHeaders.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), targetHeaders.length - sheet.getMaxColumns());
+  }
+  try {
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, targetHeaders.length).setValues([targetHeaders]);
+    if (mappedValues.length > 0) {
+      sheet.getRange(2, 1, mappedValues.length, targetHeaders.length).setValues(mappedValues);
+    }
+  } catch (error) {
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, sourceHeaders.length).setValues([sourceHeaders]);
+    if (sourceValues.length > 0) {
+      sheet.getRange(2, 1, sourceValues.length, sourceHeaders.length).setValues(sourceValues);
+    }
+    throw error;
+  }
+  sheet.setFrozenRows(1);
+}
+
+function mapSheetValuesByHeaders_(sourceHeaders, sourceValues, targetHeaders) {
+  const sourceIndexByHeader = {};
+  sourceHeaders.map(normalizeHeader_).forEach((header, index) => {
+    if (header) sourceIndexByHeader[header] = index;
+  });
+  const targetSourceIndexes = targetHeaders.map((header) => {
+    const aliases = getSheetHeaderAliasGroup_(header) || [header];
+    const matchedHeader = [header, ...aliases].find(
+      (candidate) => sourceIndexByHeader[candidate] !== undefined,
+    );
+    return matchedHeader === undefined ? -1 : sourceIndexByHeader[matchedHeader];
+  });
+  return sourceValues.map((row) =>
+    targetSourceIndexes.map((sourceIndex) => (sourceIndex >= 0 ? row[sourceIndex] : '')),
+  );
+}
+
 // 상품코드·바코드의 앞자리 0을 보존하고 날짜·수량 표시를 통일한다.
-function applyInboundWorkflowFormats_(spreadsheet) {
-  const registrationSheet = spreadsheet.getSheetByName(CONFIG.sheets.productRegistration);
+function applyInboundWorkflowFormats_(mainSpreadsheet, inboundSpreadsheet) {
+  const productSheet = mainSpreadsheet.getSheetByName(CONFIG.sheets.products);
+  const registrationSheet = inboundSpreadsheet.getSheetByName(CONFIG.sheets.productRegistration);
   const workSheets = [
-    spreadsheet.getSheetByName(CONFIG.sheets.inboundPending),
-    spreadsheet.getSheetByName(CONFIG.sheets.inboundCompleted),
-    spreadsheet.getSheetByName(CONFIG.sheets.inboundErrors),
+    inboundSpreadsheet.getSheetByName(CONFIG.sheets.inboundPending),
+    inboundSpreadsheet.getSheetByName(CONFIG.sheets.inboundCompleted),
+    inboundSpreadsheet.getSheetByName(CONFIG.sheets.inboundErrors),
   ];
+
+  applyFormatsByHeader_(productSheet, ['상품품목코드', '내부SKU', '재고코드', '관리코드'], '@');
+  applyFormatsByHeader_(
+    productSheet,
+    ['가용재고', '예약재고', '불량재고', '안전재고', '적정재고', '출고후잔량'],
+    '#,##0',
+  );
+  applyFormatsByHeader_(productSheet, ['등록일', '유효기간'], 'yyyy-mm-dd');
 
   applyFormatsByHeader_(registrationSheet, ['상품품목코드', '코드', '바코드'], '@');
   applyFormatsByHeader_(registrationSheet, ['유효기간'], 'yyyy-mm-dd');
@@ -218,8 +473,21 @@ function applyInboundWorkflowFormats_(spreadsheet) {
 }
 
 function applyPickingWorkflowFormats_(spreadsheet) {
+  const headerSheet = spreadsheet.getSheetByName(CONFIG.sheets.pickingHeaders);
   const lineSheet = spreadsheet.getSheetByName(CONFIG.sheets.pickingLines);
   if (!lineSheet) return;
+
+  if (headerSheet) {
+    const headerMap = getHeaderIndexMap_(headerSheet);
+    const headerRowCount = Math.max(headerSheet.getMaxRows() - 1, 1);
+    if (headerMap['상태']) {
+      const statusRule = SpreadsheetApp.newDataValidation()
+        .requireValueInList(['대기', '진행', '완료', '예외'], true)
+        .setAllowInvalid(false)
+        .build();
+      headerSheet.getRange(2, headerMap['상태'], headerRowCount, 1).setDataValidation(statusRule);
+    }
+  }
 
   applyFormatsByHeader_(lineSheet, ['품목별 주문번호', '주문번호', '상품품목코드'], '@');
   const headerMap = getHeaderIndexMap_(lineSheet);
@@ -352,17 +620,30 @@ function applySettingsSheetFormats_(sheet) {
   });
 }
 
-// 이후 모든 시트 접근은 저장된 운영 스프레드시트 ID 기준으로 수행한다.
-function getSpreadsheet_() {
-  const spreadsheetId = PropertiesService.getScriptProperties().getProperty(
-    CONFIG.properties.spreadsheetId,
-  );
+function getSpreadsheetByGroup_(group) {
+  const propertyKey = SPREADSHEET_GROUP_PROPERTIES[group];
+  if (!propertyKey) throw new Error(`알 수 없는 스프레드시트 그룹입니다: ${group}`);
+  const properties = PropertiesService.getScriptProperties();
+  const spreadsheetId =
+    properties.getProperty(propertyKey) ||
+    (group === 'main' ? properties.getProperty(CONFIG.properties.spreadsheetId) : '');
 
   if (!spreadsheetId) {
-    throw new Error('OPERATIONS_SPREADSHEET_ID가 없습니다. setupSystem()을 먼저 실행하세요.');
+    throw new Error(`${propertyKey}가 없습니다. setupSystem()을 먼저 실행하세요.`);
   }
 
   return SpreadsheetApp.openById(spreadsheetId);
+}
+
+function getSpreadsheetForSheet_(sheetName) {
+  const group = SHEET_SPREADSHEET_GROUPS[sheetName];
+  if (!group) throw new Error(`시트 파일 그룹이 설정되지 않았습니다: ${sheetName}`);
+  return getSpreadsheetByGroup_(group);
+}
+
+// 기존 공통 호출은 수정 금지 메인 데이터 파일을 반환한다.
+function getSpreadsheet_() {
+  return getSpreadsheetByGroup_('main');
 }
 
 // 상품/주문 공통 스캔 트리거는 기존 전용 트리거까지 정리하고 하나만 생성한다.
@@ -526,7 +807,7 @@ function syncConfiguredTriggers() {
   );
 
   ensureTrigger_();
-  ensureOrderEditTrigger_(getSpreadsheet_());
+  ensureOrderEditTrigger_(getSpreadsheetByGroup_('main'));
   ensurePickingTrigger_();
   const backupTrigger = ensureConfiguredBackupTrigger_();
 
@@ -744,7 +1025,7 @@ function authorizeAll() {
   ScriptApp.getProjectTriggers();
   PropertiesService.getScriptProperties().getProperties();
   getRootFolder_().getId();
-  getSpreadsheet_().getId();
+  Object.keys(CONFIG.spreadsheetFiles).forEach((group) => getSpreadsheetByGroup_(group).getId());
   getConfiguredFolder_(CONFIG.properties.inputFolderId).getId();
 
   const settings = getSettingsMap_();

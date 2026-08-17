@@ -24,7 +24,7 @@ function onOpen() {
     .addSeparator()
     .addItem('피킹지시 생성', 'createPickingInstruction')
     .addItem('피킹결과 반영', 'syncPickingResults')
-    .addItem('피킹 대시보드 갱신', 'refreshPickingDashboard')
+    .addItem('운영 대시보드 갱신', 'refreshOperationsDashboards')
     .addToUi();
 }
 
@@ -147,6 +147,7 @@ function approveNewProduct() {
       }
     });
 
+    refreshOperationsDashboardsSafely_();
     return { approvedCount, errorCount };
   } finally {
     lock.releaseLock();
@@ -254,6 +255,7 @@ function confirmInbound() {
       }
     });
 
+    refreshOperationsDashboardsSafely_();
     return { completedCount, recoveredCount, errorCount };
   } finally {
     lock.releaseLock();
@@ -332,14 +334,16 @@ function appendInitialProduct_(sheet, record, registrationId) {
   product['불량재고'] = 0;
   product['출고후잔량'] = 0;
 
-  const values = PRODUCT_HEADERS.map((header) => convertNewProductValue_(header, product[header]));
-  sheet.appendRow([
-    ...values,
-    registrationId,
-    '수동 상품등록',
-    now,
-    calculateInventoryStatus_(0, 0, getNumericProductValue_(record['안전재고'])),
-  ]);
+  sheet.appendRow(
+    buildProductSheetRow_(product, {
+      등록일: now,
+      승인자: getWorkflowExecutorEmail_(),
+      출고후잔량: 0,
+      원본파일ID: registrationId,
+      원본파일명: '수동 상품등록',
+      재고상태: calculateInventoryStatus_(0, 0, getNumericProductValue_(record['안전재고'])),
+    }),
+  );
 }
 
 function appendInboundTask_(sheet, product, registrationId, wasExisting) {

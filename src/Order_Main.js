@@ -85,7 +85,8 @@ function processOrderFile(file, parsedTable) {
       errorCount: 0,
       message: '주문 CSV 등록 완료',
     });
-    trashOrderFile_(file);
+    moveOrderFileToSuccessFolder_(file);
+    refreshOperationsDashboardsSafely_();
 
     return {
       orders: importedOrders.orders,

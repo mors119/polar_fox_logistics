@@ -154,7 +154,7 @@ function createPickingInstruction() {
       throw error;
     }
 
-    refreshPickingDashboard_();
+    refreshOperationsDashboardsSafely_();
     return {
       instructionId,
       orderCount: acceptedOrders.length,
@@ -253,7 +253,7 @@ function syncPickingResults() {
       completedOrders += 1;
     });
 
-    refreshPickingDashboard_();
+    refreshOperationsDashboardsSafely_();
     return { completedOrders, canceledOrders, processedLines, skipped: false };
   } finally {
     lock.releaseLock();
@@ -474,56 +474,76 @@ function refreshPickingDashboard_() {
     : 0;
   const productRecords = getSheetRecords_(getSheet_(CONFIG.sheets.products));
   const lowStocks = productRecords.filter((record) => {
-    const remaining = Number(record['출고후잔량'] || 0);
+    const remaining = Number(record['가용재고'] || 0) - Number(record['발송대기'] || 0);
     const safety = Number(record['안전재고'] || 0);
     return remaining <= (safety > 0 ? safety : 3);
   });
 
-  sheet.clearContents();
-  const rows = [
-    ['📦 피킹 운영 대시보드'],
-    [
-      `갱신 ${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MM-dd HH:mm')} · 현재 지시 ${latestInstruction || '없음'}`,
-    ],
-    [],
-    [
-      '대기',
-      statusCounts[PICKING_STATUS.waiting],
-      '진행',
-      statusCounts[PICKING_STATUS.inProgress],
-      '완료',
-      statusCounts[PICKING_STATUS.completed],
-      '예외',
-      statusCounts[PICKING_STATUS.exception],
-    ],
-    ['전체 진행률', `${progress}% (${processedCount}/${currentLines.length} 품목)`],
-    [],
-    ['슬롯', '주문번호', '담당자', '품목수', '총수량', '상태', '비고'],
-    ...currentHeaders.map((record) => [
+  const slotRows = currentHeaders.map((record) => {
+    const orderNumber = normalizeWorkflowText_(record['주문번호']);
+    const orderLines = currentLines.filter(
+      (line) => normalizeWorkflowText_(line['주문번호']) === orderNumber,
+    );
+    const completedLines = orderLines.filter((line) =>
+      [PICKING_STATUS.deducted, PICKING_STATUS.restored, PICKING_STATUS.canceled].includes(
+        normalizeWorkflowText_(line['라인상태']),
+      ),
+    ).length;
+    const orderProgress = orderLines.length
+      ? Math.round((completedLines / orderLines.length) * 100)
+      : 0;
+    return [
       record['카트슬롯'],
-      record['주문번호'],
+      orderNumber,
       record['피킹담당자'],
       record['품목수'],
       record['총수량'],
+      `${buildDashboardProgressBar_(orderProgress, 8)} ${orderProgress}%`,
       record['상태'],
       record['예외사유'],
-    ]),
+    ];
+  });
+  resetDashboardSheet_(sheet);
+  const rows = [
+    ['📦  피킹 현황'],
+    [`${dashboardUpdatedText_()}     ·     현재 지시  ${latestInstruction || '없음'}`],
+    ['대기', '', '진행 중', '', '완료', '', '취소', ''],
+    [
+      statusCounts[PICKING_STATUS.waiting],
+      '',
+      statusCounts[PICKING_STATUS.inProgress],
+      '',
+      statusCounts[PICKING_STATUS.completed],
+      '',
+      statusCounts[PICKING_STATUS.exception],
+      '',
+    ],
+    [
+      '전체 진행률',
+      `${buildDashboardProgressBar_(progress, 20)}   ${progress}%   (${processedCount} / ${currentLines.length} 품목)`,
+    ],
+    [],
+    ['슬롯별 현황'],
+    ['슬롯', '주문번호', '담당자', '품목', '수량', '진행', '상태', '비고'],
+    ...slotRows,
     [],
     ['⚠ 안전재고 확인'],
-    ['상품코드', '상품명', '옵션', '로케이션', '출고후잔량', '안전재고'],
+    ['상품코드', '상품명', '옵션', '위치', '가용', '예약', '출고후잔량', '안전재고'],
     ...lowStocks.map((record) => [
       record['상품품목코드'],
       record['상품명'],
       record['옵션'],
       record['로케이션'],
-      record['출고후잔량'],
+      record['가용재고'],
+      record['발송대기'],
+      Number(record['가용재고'] || 0) - Number(record['발송대기'] || 0),
       record['안전재고'],
     ]),
   ];
   const width = Math.max(...rows.map((row) => row.length), 1);
   const normalizedRows = rows.map((row) => [...row, ...Array(width - row.length).fill('')]);
   sheet.getRange(1, 1, normalizedRows.length, width).setValues(normalizedRows);
-  sheet.setFrozenRows(2);
+  stylePickingDashboard_(sheet, normalizedRows.length, 11 + slotRows.length);
   return { instructionId: latestInstruction, progress, lowStockCount: lowStocks.length };
 }
 

@@ -1,6 +1,6 @@
-// 처리 완료한 주문 입력 파일은 시트에 기록을 남긴 뒤 휴지통으로 보낸다.
-function trashOrderFile_(file) {
-  file.setTrashed(true);
+// 처리 완료한 주문 입력 파일은 공통 success 폴더로 이동한다.
+function moveOrderFileToSuccessFolder_(file) {
+  moveFileToSuccessFolder_(file);
 }
 
 // 처리 실패한 주문 입력 파일은 공통 error 폴더로 이동한다.

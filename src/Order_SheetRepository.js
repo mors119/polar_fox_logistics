@@ -342,6 +342,14 @@ function getHeaderIndexMap_(sheet) {
     }
   });
 
+  SHEET_HEADER_ALIAS_GROUPS.forEach((group) => {
+    const columnIndex = group.map((header) => map[header]).find(Boolean);
+    if (!columnIndex) return;
+    group.forEach((header) => {
+      if (!map[header]) map[header] = columnIndex;
+    });
+  });
+
   return map;
 }
 
@@ -364,13 +372,29 @@ function getSheetRecords_(sheet) {
         record[header] = String(row[index] ?? '').trim();
       }
     });
+    SHEET_HEADER_ALIAS_GROUPS.forEach((group) => {
+      const value = group
+        .map((header) => record[header])
+        .find((candidate) => candidate !== undefined && candidate !== '');
+      if (value === undefined) return;
+      group.forEach((header) => {
+        if (record[header] === undefined || record[header] === '') record[header] = value;
+      });
+    });
     return record;
   });
 }
 
 // 과거 헤더명 변경에 대응하려고 별칭 배열도 받을 수 있게 만든 조회 함수다.
 function getRecordValueByAliases_(record, aliases) {
-  const aliasList = Array.isArray(aliases) ? aliases : [aliases];
+  const requestedAliases = Array.isArray(aliases) ? aliases : [aliases];
+  const aliasList = [];
+  requestedAliases.forEach((alias) => {
+    const group = getSheetHeaderAliasGroup_(alias);
+    (group || [alias]).forEach((candidate) => {
+      if (!aliasList.includes(candidate)) aliasList.push(candidate);
+    });
+  });
 
   for (let index = 0; index < aliasList.length; index += 1) {
     const value = record[aliasList[index]];
@@ -382,9 +406,18 @@ function getRecordValueByAliases_(record, aliases) {
   return '';
 }
 
+function getSheetHeaderAliasGroup_(header) {
+  return SHEET_HEADER_ALIAS_GROUPS.find((group) => group.includes(header)) || null;
+}
+
+function getCanonicalSheetHeader_(header) {
+  const group = getSheetHeaderAliasGroup_(header);
+  return group ? group[0] : header;
+}
+
 // 공백 정리까지 포함한 문자열 필드 읽기 함수다.
 function getTrimmedField_(record, fieldName) {
-  return String(record[fieldName] ?? '').trim();
+  return String(getRecordValueByAliases_(record, fieldName) ?? '').trim();
 }
 
 // 값이 없으면 빈칸을 유지하고, 값이 있으면 숫자로 바꿔서 반환한다.

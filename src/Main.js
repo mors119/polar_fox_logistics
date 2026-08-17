@@ -76,10 +76,14 @@ function routeInputFile_(file) {
 // 주문/상품 고유 필수 헤더가 모두 있는지 비교해 입력 종류를 결정한다.
 function detectInputTypeFromHeaders_(headers) {
   const normalizedHeaders = (headers || []).map(normalizeHeader_).filter(Boolean);
+  const normalizedOrderHeaders = normalizedHeaders.map(normalizeOrderImportHeader_);
+  const normalizedProductHeaders = normalizedHeaders.map(normalizeProductImportHeader_);
   const hasOrderHeaders = REQUIRED_ORDER_HEADERS.every((header) =>
-    normalizedHeaders.includes(header),
+    normalizedOrderHeaders.includes(header),
   );
-  const hasProductHeaders = REQUIRED_HEADERS.every((header) => normalizedHeaders.includes(header));
+  const hasProductHeaders = REQUIRED_HEADERS.every((header) =>
+    normalizedProductHeaders.includes(header),
+  );
 
   if (hasOrderHeaders && hasProductHeaders) {
     throw appError_(
@@ -98,10 +102,10 @@ function detectInputTypeFromHeaders_(headers) {
   }
 
   const missingOrderHeaders = REQUIRED_ORDER_HEADERS.filter(
-    (header) => !normalizedHeaders.includes(header),
+    (header) => !normalizedOrderHeaders.includes(header),
   );
   const missingProductHeaders = REQUIRED_HEADERS.filter(
-    (header) => !normalizedHeaders.includes(header),
+    (header) => !normalizedProductHeaders.includes(header),
   );
 
   throw appError_(
@@ -126,7 +130,7 @@ function processCsvFile_(file, parsedTable) {
       throw appError_('EMPTY_CSV', 'CSV에 데이터 행이 없습니다.', 'CSV_PARSE');
     }
 
-    const headers = table[0].map(normalizeHeader_);
+    const headers = table[0].map(normalizeProductImportHeader_);
     validateHeaders_(headers);
 
     // 헤더 아래의 실제 데이터 행만 추려서 빈 줄은 버린다.
@@ -165,7 +169,8 @@ function processCsvFile_(file, parsedTable) {
       startedAt,
       message: '상품마스터 등록 완료',
     });
-    trashFile_(file);
+    moveFileToSuccessFolder_(file);
+    refreshOperationsDashboardsSafely_();
   } catch (error) {
     // 예외가 아직 로그로 남지 않은 경우에만 공통 오류 로그를 한 번 추가한다.
     if (!error.alreadyLogged) {

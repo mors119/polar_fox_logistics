@@ -21,21 +21,19 @@ function importProducts_(file, products) {
       const existingProduct = existingProducts[productCode];
 
       if (!existingProduct) {
-        const productValues = PRODUCT_HEADERS.map((header) =>
-          convertNewProductValue_(header, product[header]),
-        );
         const availableStock = getNumericProductValue_(product['가용재고']);
         const pendingStock = 0;
         const safetyStock = getNumericProductValue_(product['안전재고']);
-        productValues[PRODUCT_HEADERS.indexOf('출고후잔량')] = availableStock - pendingStock;
-
-        rowsToAppend.push([
-          ...productValues,
-          file.getId(),
-          file.getName(),
-          now,
-          calculateInventoryStatus_(availableStock, pendingStock, safetyStock),
-        ]);
+        rowsToAppend.push(
+          buildProductSheetRow_(product, {
+            등록일: now,
+            승인자: '',
+            출고후잔량: availableStock - pendingStock,
+            원본파일ID: file.getId(),
+            원본파일명: file.getName(),
+            재고상태: calculateInventoryStatus_(availableStock, pendingStock, safetyStock),
+          }),
+        );
         inventoryChanges.push({
           timestamp: now,
           type: '신규입고',
@@ -92,6 +90,16 @@ function importProducts_(file, products) {
   }
 
   return affectedCount;
+}
+
+function buildProductSheetRow_(product, metadata) {
+  return PRODUCT_SHEET_HEADERS.map((sheetHeader) => {
+    if (Object.prototype.hasOwnProperty.call(metadata || {}, sheetHeader)) {
+      return metadata[sheetHeader];
+    }
+    const canonicalHeader = getCanonicalSheetHeader_(sheetHeader);
+    return convertNewProductValue_(canonicalHeader, product[canonicalHeader]);
+  });
 }
 
 // 숫자와 날짜는 시트에서 후속 활용이 쉽도록 타입을 맞춰 넣는다.

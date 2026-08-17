@@ -10,6 +10,7 @@ const context = vm.createContext({ console, Date });
   'src/Order_Config.js',
   'src/Order_SheetRepository.js',
   'src/InventoryService.js',
+  'src/Productimport.js',
   'src/InboundWorkflow.js',
 ].forEach((filePath) => {
   vm.runInContext(fs.readFileSync(filePath, 'utf8'), context, { filename: filePath });
@@ -19,6 +20,28 @@ function evaluate(expression, values = {}) {
   Object.assign(context, values);
   return vm.runInContext(expression, context);
 }
+
+test('상품마스터 신규 행을 최신 컬럼 순서로 만든다', () => {
+  const row = evaluate('buildProductSheetRow_(__product, __metadata)', {
+    __product: {
+      상품품목코드: 'P0001',
+      코드: 'SKU-1',
+      상품명: '테스트 상품',
+      옵션: '파랑',
+      로케이션: 'A-01-01',
+      가용재고: '5',
+      발송대기: '0',
+      불량재고: '0',
+    },
+    __metadata: { 등록일: '2026-08-17', 승인자: 'tester@example.com', 출고후잔량: 5 },
+  });
+
+  assert.equal(row.length, evaluate('PRODUCT_SHEET_HEADERS.length'));
+  assert.equal(row[evaluate("PRODUCT_SHEET_HEADERS.indexOf('내부SKU')")], 'SKU-1');
+  assert.equal(row[evaluate("PRODUCT_SHEET_HEADERS.indexOf('옵션명')")], '파랑');
+  assert.equal(row[evaluate("PRODUCT_SHEET_HEADERS.indexOf('기본보관위치')")], 'A-01-01');
+  assert.equal(row[evaluate("PRODUCT_SHEET_HEADERS.indexOf('예약재고')")], 0);
+});
 
 test('상품 등록은 필수값과 음수 재고를 거부한다', () => {
   const errors = evaluate('validateProductRegistrationRecord_(__record)', {
