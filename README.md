@@ -188,13 +188,12 @@ npm run push
 - `src/HistoryAndError.js`: 이력/오류 기록과 공통 시트 접근
 
 - `src/Order_Config.js`: 주문 폴더/시트/헤더 설정
-- `src/Order_Main.js`: 주문 처리 메인 흐름과 기존 실행 함수 호환 래퍼
+- `src/Order_Main.js`: 주문 처리 메인 흐름
 - `src/Order_CsvParser.js`: 주문 CSV 파싱
 - `src/Order_Validator.js`: 주문 헤더/행 검증
 - `src/Order_DuplicateChecker.js`: 주문 파일/품목번호 중복 검사
 - `src/Order_SheetRepository.js`: 주문/주문상품 시트 적재와 롤백
 - `src/Order_ErrorService.js`: 주문 이력/오류 기록
-- `src/Order_DriveService.js`: 주문 입력 폴더 접근과 파일 정리
 - `src/Order_EditService.js`: 주문상품 체크박스 편집과 발송대기 반영
 
 ## 문서

@@ -5,7 +5,6 @@
 ## 폴더/파일 이동
 
 - `src/Setup.js`
-- `src/Order_DriveService.js`
 - `src/HistoryAndError.js`
 
 역할:
@@ -16,7 +15,6 @@
 
 ## 시트 접근
 
-- `src/Setup.js`
 - `src/Setup.js`
 - `src/HistoryAndError.js`
 - `src/Order_SheetRepository.js`

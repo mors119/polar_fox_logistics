@@ -30,11 +30,6 @@ function scanInputFolder() {
   }
 }
 
-// 기존 수동 실행 함수와 설치된 트리거가 새 공통 스캐너를 계속 호출할 수 있게 유지한다.
-function scanCsvInputFolder() {
-  return scanInputFolder();
-}
-
 // 파일을 한 번만 읽고 필수 헤더 조합으로 상품 파일인지 주문 파일인지 판별한다.
 function routeInputFile_(file) {
   const startedAt = new Date();

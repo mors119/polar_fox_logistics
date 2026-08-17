@@ -50,7 +50,6 @@ const CONFIG = Object.freeze({
     inventoryModelVersion: 'INVENTORY_MODEL_VERSION',
   },
   backupExportMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  spreadsheetName: 'polar_fox_logistics',
   spreadsheetFiles: {
     main: '01_메인데이터_수정금지',
     inbound: '02_상품입고_작업',

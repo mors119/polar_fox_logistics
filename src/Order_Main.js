@@ -1,8 +1,3 @@
-// 기존 주문 전용 실행 함수는 공통 input 스캐너로 위임한다.
-function scanOrderFolder() {
-  return scanInputFolder();
-}
-
 // 주문 CSV 한 개를 검증, 저장, 롤백, 파일 이동까지 포함해 처리한다.
 function processOrderFile(file, parsedTable) {
   let parsedCsv = null;
@@ -85,7 +80,7 @@ function processOrderFile(file, parsedTable) {
       errorCount: 0,
       message: '주문 CSV 등록 완료',
     });
-    moveOrderFileToSuccessFolder_(file);
+    moveFileToSuccessFolder_(file);
     refreshOperationsDashboardsSafely_();
 
     return {
@@ -134,7 +129,7 @@ function processOrderFile(file, parsedTable) {
       errorCount: errorCount || 1,
       message: error.message || String(error),
     });
-    moveOrderFileToErrorFolder_(file);
+    moveFileToErrorFolder_(file);
 
     console.error(`주문 파일 처리 실패: ${file.getName()}`, error);
     return {

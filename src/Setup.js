@@ -193,14 +193,6 @@ function getOrCreateSpreadsheetFile_(propertyKey, spreadsheetName) {
   return spreadsheet;
 }
 
-// 기존 호출은 메인 데이터 파일을 반환해 하위 호환을 유지한다.
-function getOrCreateSpreadsheet_() {
-  return getOrCreateSpreadsheetFile_(
-    CONFIG.properties.mainSpreadsheetId,
-    CONFIG.spreadsheetFiles.main,
-  );
-}
-
 function findRootSpreadsheetByName_(spreadsheetName) {
   const files = getRootFolder_().getFilesByName(spreadsheetName);
 

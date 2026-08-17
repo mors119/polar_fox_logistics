@@ -440,16 +440,6 @@ function classifyPickingCancellationRecovery_(current, recovery) {
   return 'ambiguous';
 }
 
-function refreshPickingDashboard() {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    return refreshPickingDashboard_();
-  } finally {
-    lock.releaseLock();
-  }
-}
-
 function refreshPickingDashboard_() {
   const sheet = getSheet_(CONFIG.sheets.pickingDashboard);
   const headers = getSheetRecords_(getSheet_(CONFIG.sheets.pickingHeaders));

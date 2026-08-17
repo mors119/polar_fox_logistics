@@ -51,7 +51,6 @@
 - `src/Order_DuplicateChecker.js`: 파일 및 품목번호 중복 검사
 - `src/Order_SheetRepository.js`: 주문/주문상품 적재, 롤백
 - `src/Order_ErrorService.js`: 주문 오류/이력 기록
-- `src/Order_DriveService.js`: 주문 입력 폴더 접근, 파일 이동
 
 실행 흐름:
 
