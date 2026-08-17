@@ -104,3 +104,5 @@ docs/generated/
 *.pid
 *.seed
 *.pid.lock
+
+.vault/
