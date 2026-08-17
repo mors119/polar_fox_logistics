@@ -140,7 +140,7 @@ function processCsvFile_(file, parsedTable) {
     totalRows = rows.length;
 
     const products = mapRowsToObjects_(headers, rows);
-    const validation = validateProductRows_(products);
+    const validation = validateProductRows_(products, importOptions);
 
     // 행 검증 오류는 개별 오류 로그를 남긴 뒤 파일 전체 실패로 처리한다.
     if (!validation.valid) {

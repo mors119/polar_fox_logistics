@@ -152,6 +152,30 @@ test('카페24 재고 헤더를 상품 파일로 판별한다', () => {
   );
 });
 
+test('카페24 현재 재고는 품절 초과 주문으로 인한 음수를 허용한다', () => {
+  context.__negativeCafe24Rows = [
+    {
+      __rowNumber: 217,
+      상품품목코드: 'P-NEGATIVE',
+      상품명: '재고 부족 상품',
+      가용재고: '-2',
+    },
+  ];
+
+  const snapshotValidation = vm.runInContext(
+    "validateProductRows_(__negativeCafe24Rows, { inventoryMode: 'snapshot' })",
+    context,
+  );
+  const additiveValidation = vm.runInContext(
+    "validateProductRows_(__negativeCafe24Rows, { inventoryMode: 'additive' })",
+    context,
+  );
+
+  assert.equal(snapshotValidation.valid, true);
+  assert.equal(additiveValidation.valid, false);
+  assert.equal(additiveValidation.errors[0].code, 'INVALID_NUMBER');
+});
+
 test('실제 카페24 주문 헤더와 숫자 셀을 그대로 처리한다', () => {
   context.__realOrderTable = [
     [
