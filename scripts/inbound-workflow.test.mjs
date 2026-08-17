@@ -43,6 +43,16 @@ test('상품마스터 신규 행을 최신 컬럼 순서로 만든다', () => {
   assert.equal(row[evaluate("PRODUCT_SHEET_HEADERS.indexOf('예약재고')")], 0);
 });
 
+test('카페24 재고 스냅샷은 기존 재고에 더하지 않고 현재값으로 맞춘다', () => {
+  const snapshot = evaluate("calculateAvailableStockImport_(40, '25', 'snapshot')");
+  const inbound = evaluate("calculateAvailableStockImport_(40, '25', 'additive')");
+
+  assert.equal(snapshot.after, 25);
+  assert.equal(snapshot.delta, -15);
+  assert.equal(inbound.after, 65);
+  assert.equal(inbound.delta, 25);
+});
+
 test('상품 등록은 필수값과 음수 재고를 거부한다', () => {
   const errors = evaluate('validateProductRegistrationRecord_(__record)', {
     __record: { 상품품목코드: '', 상품명: '', 안전재고: '-1' },

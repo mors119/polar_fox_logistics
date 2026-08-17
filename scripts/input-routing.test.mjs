@@ -130,6 +130,74 @@ test('카페24 재고 헤더를 상품 파일로 판별한다', () => {
     vm.runInContext(`normalizeProductImportHeader_(${JSON.stringify(header)})`, context),
   );
   assert.doesNotThrow(() => vm.runInContext('validateHeaders_(__cafe24Headers)', context));
+
+  context.__cafe24Rows = [
+    {
+      __rowNumber: 2,
+      상품코드: 'P00000KV',
+      상품명: '검을 든 꽃 색지 SET',
+      상품품목코드: 'P00000KV000A',
+      옵션: '',
+      가용재고: 300,
+    },
+  ];
+  const validation = vm.runInContext('validateProductRows_(__cafe24Rows)', context);
+  assert.equal(validation.valid, true);
+  assert.equal(
+    vm.runInContext(
+      "isCafe24InventoryHeaders_(['상품코드', '자체 상품코드', '상품명', '판매가', '총 재고량', '품목코드', '품목명', '자체 품목코드', '재고관리 사용', '재고수량'])",
+      context,
+    ),
+    true,
+  );
+});
+
+test('실제 카페24 주문 헤더와 숫자 셀을 그대로 처리한다', () => {
+  context.__realOrderTable = [
+    [
+      '쇼핑몰',
+      '쇼핑몰번호',
+      '주문번호',
+      '품목별 주문번호',
+      '배송메시지',
+      '총 주문금액(KRW)',
+      '총 결제금액(KRW)',
+      '상품품목코드',
+      '주문상품명(기본)',
+      '상품옵션(기본)',
+      '수량',
+      '판매가',
+      '수령인',
+      '수령인 휴대전화',
+      '수령인 우편번호',
+      '수령인 주소(전체)',
+    ],
+    [
+      '한국어 쇼핑몰',
+      1,
+      '20990101-0000001',
+      '20990101-0000001-01',
+      '',
+      25000,
+      25000,
+      'P00000KV000A',
+      '검을 든 꽃 색지 SET',
+      '',
+      1,
+      9500,
+      '테스트수령인',
+      '010-0000-0001',
+      1,
+      '테스트시 테스트로 1',
+    ],
+  ];
+  const parsed = vm.runInContext('parseOrderCsv(null, __realOrderTable)', context);
+  context.__parsedRealOrder = parsed;
+
+  assert.doesNotThrow(() => vm.runInContext('validateCsv(__parsedRealOrder)', context));
+  assert.equal(parsed.rows[0]['쇼핑몰 번호'], '1');
+  assert.equal(parsed.rows[0]['수량'], '1');
+  assert.equal(parsed.rows[0]['주문상품명'], '검을 든 꽃 색지 SET');
 });
 
 test('알 수 없는 헤더 조합은 UNKNOWN_INPUT_TYPE 오류를 낸다', () => {

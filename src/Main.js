@@ -125,7 +125,11 @@ function processCsvFile_(file, parsedTable) {
       throw appError_('EMPTY_CSV', 'CSV에 데이터 행이 없습니다.', 'CSV_PARSE');
     }
 
-    const headers = table[0].map(normalizeProductImportHeader_);
+    const sourceHeaders = table[0].map(normalizeHeader_);
+    const headers = sourceHeaders.map(normalizeProductImportHeader_);
+    const importOptions = {
+      inventoryMode: isCafe24InventoryHeaders_(sourceHeaders) ? 'snapshot' : 'additive',
+    };
     validateHeaders_(headers);
 
     // 헤더 아래의 실제 데이터 행만 추려서 빈 줄은 버린다.
@@ -154,7 +158,7 @@ function processCsvFile_(file, parsedTable) {
     }
 
     // 실제 저장 단계에서 기존 상품은 누적 갱신하고, 없는 상품만 신규 추가한다.
-    importedRows = importProducts_(file, products);
+    importedRows = importProducts_(file, products, importOptions);
 
     appendHistory_(file, {
       status: 'SUCCESS',

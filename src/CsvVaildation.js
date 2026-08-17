@@ -171,11 +171,11 @@ function validateProductRows_(rows) {
     NUMERIC_HEADERS.forEach((header) => {
       const value = row[header];
 
-      if (value === '') {
+      if (value === '' || value === null || value === undefined) {
         return;
       }
 
-      const number = Number(value.replace(/,/g, ''));
+      const number = Number(String(value).replace(/,/g, ''));
 
       if (!Number.isFinite(number) || number < 0) {
         errors.push({

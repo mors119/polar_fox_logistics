@@ -1,5 +1,5 @@
 // 검증이 끝난 상품 목록은 기존 상품은 갱신하고, 없는 상품은 신규 행으로 추가한다.
-function importProducts_(file, products) {
+function importProducts_(file, products, options) {
   if (products.length === 0) {
     return 0;
   }
@@ -14,6 +14,7 @@ function importProducts_(file, products) {
   let appendedStartRow = 0;
   let appendedRowCount = 0;
   let affectedCount = 0;
+  const inventoryMode = (options && options.inventoryMode) || 'additive';
 
   try {
     products.forEach((product) => {
@@ -36,7 +37,7 @@ function importProducts_(file, products) {
         );
         inventoryChanges.push({
           timestamp: now,
-          type: '신규입고',
+          type: inventoryMode === 'snapshot' ? '재고동기화' : '신규입고',
           productCode,
           productName: product['상품명'],
           option: product['옵션'],
@@ -63,6 +64,7 @@ function importProducts_(file, products) {
         product,
         file,
         now,
+        { inventoryMode },
       );
       if (change.availableDelta !== 0 || change.pendingDelta !== 0) {
         inventoryChanges.push(change);
@@ -113,7 +115,7 @@ function convertNewProductValue_(header, value) {
   }
 
   if (header === '유효기간' && value) {
-    return new Date(value.replace(/\//g, '-') + 'T00:00:00');
+    return new Date(String(value).replace(/\//g, '-') + 'T00:00:00');
   }
 
   return value;
@@ -128,15 +130,28 @@ function getNumericProductValue_(value) {
   return Number(String(value).replace(/,/g, ''));
 }
 
+function calculateAvailableStockImport_(currentStock, importedStock, inventoryMode) {
+  const current = Number(currentStock || 0);
+  const imported = getNumericProductValue_(importedStock);
+  const after = inventoryMode === 'snapshot' ? imported : current + imported;
+  return { delta: after - current, after };
+}
+
 // 기존 상품마스터 행은 숫자 필드는 누적하고, 일반 필드는 새 값이 있으면 갱신한다.
-function updateExistingProductRow_(sheet, headerMap, rowNumber, product, file, now) {
+function updateExistingProductRow_(sheet, headerMap, rowNumber, product, file, now, options) {
   const currentAvailableStock = Number(
     sheet.getRange(rowNumber, headerMap['가용재고']).getValue() || 0,
   );
   const currentPendingStock = Number(
     sheet.getRange(rowNumber, headerMap['발송대기']).getValue() || 0,
   );
-  const availableDelta = getNumericProductValue_(product['가용재고']);
+  const inventoryMode = (options && options.inventoryMode) || 'additive';
+  const availableImport = calculateAvailableStockImport_(
+    currentAvailableStock,
+    product['가용재고'],
+    inventoryMode,
+  );
+  const availableDelta = availableImport.delta;
 
   PRODUCT_HEADERS.forEach((header) => {
     const columnIndex = headerMap[header];
@@ -154,7 +169,11 @@ function updateExistingProductRow_(sheet, headerMap, rowNumber, product, file, n
     if (ADDITIVE_PRODUCT_HEADERS.includes(header)) {
       const currentValue = Number(sheet.getRange(rowNumber, columnIndex).getValue() || 0);
       const delta = getNumericProductValue_(nextValue);
-      sheet.getRange(rowNumber, columnIndex).setValue(currentValue + delta);
+      const updatedValue =
+        inventoryMode === 'snapshot' && header === '가용재고'
+          ? availableImport.after
+          : currentValue + delta;
+      sheet.getRange(rowNumber, columnIndex).setValue(updatedValue);
       return;
     }
 
@@ -183,7 +202,7 @@ function updateExistingProductRow_(sheet, headerMap, rowNumber, product, file, n
   setMappedProductCell_(sheet, rowNumber, headerMap, '원본파일명', file.getName());
   setMappedProductCell_(sheet, rowNumber, headerMap, '등록일시', now);
 
-  const availableAfter = currentAvailableStock + availableDelta;
+  const availableAfter = availableImport.after;
   const safetyStockColumn = headerMap['안전재고'];
   const safetyStock = safetyStockColumn
     ? Number(sheet.getRange(rowNumber, safetyStockColumn).getValue() || 0)
@@ -196,7 +215,7 @@ function updateExistingProductRow_(sheet, headerMap, rowNumber, product, file, n
 
   return {
     timestamp: now,
-    type: '재입고',
+    type: inventoryMode === 'snapshot' ? '재고동기화' : '재입고',
     productCode: String(product['상품품목코드'] || '').trim(),
     productName:
       product['상품명'] ||

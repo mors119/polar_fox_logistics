@@ -144,6 +144,18 @@ const PRODUCT_IGNORED_IMPORT_HEADERS = Object.freeze([
   '승인자',
 ]);
 
+const CAFE24_INVENTORY_REQUIRED_HEADERS = Object.freeze([
+  '상품코드',
+  '상품명',
+  '품목코드',
+  '재고수량',
+]);
+
+function isCafe24InventoryHeaders_(headers) {
+  const normalizedHeaders = (headers || []).map(normalizeHeader_);
+  return CAFE24_INVENTORY_REQUIRED_HEADERS.every((header) => normalizedHeaders.includes(header));
+}
+
 // 최소한 반드시 들어와야 하는 헤더만 따로 분리한다.
 const REQUIRED_HEADERS = Object.freeze(['상품품목코드', '상품명']);
 
