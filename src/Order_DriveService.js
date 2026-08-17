@@ -8,7 +8,7 @@ function moveOrderFileToErrorFolder_(file) {
   moveFileToErrorFolder_(file);
 }
 
-// 주문 흐름 전용 입력 폴더를 가져온다.
+// 기존 호출부도 공통 input 폴더를 사용한다.
 function getOrderInputFolder_() {
-  return getConfiguredFolder_(ORDER_CONFIG.properties.inputFolderId);
+  return getConfiguredFolder_(CONFIG.properties.inputFolderId);
 }

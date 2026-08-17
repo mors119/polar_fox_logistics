@@ -1,15 +1,15 @@
-// 상품 입력 폴더를 순회하면서 CSV, 엑셀, 구글 스프레드시트만 골라 처리한다.
-function scanCsvInputFolder() {
+// 공통 input 폴더를 순회하면서 헤더 구조에 따라 상품/주문 처리 흐름으로 자동 분기한다.
+function scanInputFolder() {
   const lock = LockService.getScriptLock();
 
   if (!lock.tryLock(1000)) {
-    console.log('다른 CSV 작업이 실행 중입니다.');
+    console.log('다른 입력 파일 작업이 실행 중입니다.');
     return;
   }
 
   try {
     if (!shouldRunDuringOperatingHours_()) {
-      console.log('운영 시간이 아니므로 상품 CSV 스캔을 건너뜁니다.');
+      console.log('운영 시간이 아니므로 입력 폴더 스캔을 건너뜁니다.');
       return;
     }
 
@@ -23,15 +23,96 @@ function scanCsvInputFolder() {
         continue;
       }
 
-      processCsvFile_(file);
+      routeInputFile_(file);
     }
   } finally {
     lock.releaseLock();
   }
 }
 
+// 기존 수동 실행 함수와 설치된 트리거가 새 공통 스캐너를 계속 호출할 수 있게 유지한다.
+function scanCsvInputFolder() {
+  return scanInputFolder();
+}
+
+// 파일을 한 번만 읽고 필수 헤더 조합으로 상품 파일인지 주문 파일인지 판별한다.
+function routeInputFile_(file) {
+  const startedAt = new Date();
+
+  try {
+    const table = parseCsvFile_(file);
+    const nonEmptyRows = table.filter((row) =>
+      row.some((value) => String(value ?? '').trim() !== ''),
+    );
+    const headers = nonEmptyRows.length > 0 ? nonEmptyRows[0].map(normalizeHeader_) : [];
+    const inputType = detectInputTypeFromHeaders_(headers);
+
+    if (inputType === 'order') {
+      return processOrderFile(file, nonEmptyRows);
+    }
+
+    return processCsvFile_(file, nonEmptyRows);
+  } catch (error) {
+    appendErrorLog_(file, error.stage || 'INPUT_ROUTING', {
+      rowNumber: '',
+      productCode: '',
+      code: error.code || 'INPUT_TYPE_DETECTION_FAILED',
+      message: error.message || String(error),
+    });
+    appendHistory_(file, {
+      status: 'FAILED',
+      totalRows: 0,
+      importedRows: 0,
+      errorCount: 1,
+      startedAt,
+      message: error.message || String(error),
+    });
+    moveFileToErrorFolder_(file);
+    console.error(`입력 파일 유형 판별 실패: ${file.getName()}`, error);
+    return null;
+  }
+}
+
+// 주문/상품 고유 필수 헤더가 모두 있는지 비교해 입력 종류를 결정한다.
+function detectInputTypeFromHeaders_(headers) {
+  const normalizedHeaders = (headers || []).map(normalizeHeader_).filter(Boolean);
+  const hasOrderHeaders = REQUIRED_ORDER_HEADERS.every((header) =>
+    normalizedHeaders.includes(header),
+  );
+  const hasProductHeaders = REQUIRED_HEADERS.every((header) => normalizedHeaders.includes(header));
+
+  if (hasOrderHeaders && hasProductHeaders) {
+    throw appError_(
+      'AMBIGUOUS_INPUT_TYPE',
+      '주문과 상품 필수 헤더가 동시에 있어 파일 유형을 판별할 수 없습니다.',
+      'INPUT_ROUTING',
+    );
+  }
+
+  if (hasOrderHeaders) {
+    return 'order';
+  }
+
+  if (hasProductHeaders) {
+    return 'product';
+  }
+
+  const missingOrderHeaders = REQUIRED_ORDER_HEADERS.filter(
+    (header) => !normalizedHeaders.includes(header),
+  );
+  const missingProductHeaders = REQUIRED_HEADERS.filter(
+    (header) => !normalizedHeaders.includes(header),
+  );
+
+  throw appError_(
+    'UNKNOWN_INPUT_TYPE',
+    `주문 또는 상품 파일로 판별할 수 없습니다. 주문 필수 헤더 누락: ${missingOrderHeaders.join(', ')} / 상품 필수 헤더 누락: ${missingProductHeaders.join(', ')}`,
+    'INPUT_ROUTING',
+  );
+}
+
 // 상품 CSV 한 개를 파싱, 검증, 저장, 기록, 입력 파일 정리까지 처리하는 메인 흐름이다.
-function processCsvFile_(file) {
+function processCsvFile_(file, parsedTable) {
   const startedAt = new Date();
   let totalRows = 0;
   let importedRows = 0;
@@ -39,7 +120,7 @@ function processCsvFile_(file) {
   try {
     assertFileNotProcessed_(file);
 
-    const table = parseCsvFile_(file);
+    const table = parsedTable || parseCsvFile_(file);
 
     if (table.length < 2) {
       throw appError_('EMPTY_CSV', 'CSV에 데이터 행이 없습니다.', 'CSV_PARSE');

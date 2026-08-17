@@ -1,37 +1,10 @@
-// 주문 입력 폴더를 순회하면서 CSV, 엑셀, 구글 스프레드시트만 골라 처리한다.
+// 기존 주문 전용 실행 함수는 공통 input 스캐너로 위임한다.
 function scanOrderFolder() {
-  const lock = LockService.getScriptLock();
-
-  if (!lock.tryLock(1000)) {
-    console.log('다른 주문 CSV 작업이 실행 중입니다.');
-    return;
-  }
-
-  try {
-    if (!shouldRunDuringOperatingHours_()) {
-      console.log('운영 시간이 아니므로 주문 CSV 스캔을 건너뜁니다.');
-      return;
-    }
-
-    const folder = getOrderInputFolder_();
-    const files = folder.getFiles();
-
-    while (files.hasNext()) {
-      const file = files.next();
-
-      if (!isSupportedImportFile_(file)) {
-        continue;
-      }
-
-      processOrderFile(file);
-    }
-  } finally {
-    lock.releaseLock();
-  }
+  return scanInputFolder();
 }
 
 // 주문 CSV 한 개를 검증, 저장, 롤백, 파일 이동까지 포함해 처리한다.
-function processOrderFile(file) {
+function processOrderFile(file, parsedTable) {
   let parsedCsv = null;
   let historyContext = null;
   let errorCount = 0;
@@ -41,13 +14,15 @@ function processOrderFile(file) {
     orderItemStartRow: 0,
     orderItemRowCount: 0,
     productStockSnapshots: [],
+    inventoryHistoryStartRow: 0,
+    inventoryHistoryRowCount: 0,
   };
 
   try {
     checkDuplicateFile(file);
 
     // 주문 흐름은 파싱 후 헤더를 먼저 검증하고, 그 다음 이력을 남긴다.
-    parsedCsv = parseOrderCsv(file);
+    parsedCsv = parseOrderCsv(file, parsedTable);
     validateCsv(parsedCsv);
     historyContext = startOrderFileHistory_(file, parsedCsv.rows.length);
 
@@ -96,7 +71,10 @@ function processOrderFile(file) {
     rollbackContext.orderItemStartRow = importedOrderItems.orderItemStartRow;
     rollbackContext.orderItemRowCount = importedOrderItems.orderItemRowCount;
 
-    rollbackContext.productStockSnapshots = applyOrderInventoryAdjustments_(parsedCsv.rows);
+    const inventoryAdjustment = applyOrderInventoryAdjustments_(parsedCsv.rows, file);
+    rollbackContext.productStockSnapshots = inventoryAdjustment.snapshots;
+    rollbackContext.inventoryHistoryStartRow = inventoryAdjustment.historyStartRow;
+    rollbackContext.inventoryHistoryRowCount = inventoryAdjustment.historyRowCount;
 
     finalizeOrderFileHistory_(file, {
       rowNumber: historyContext.rowNumber,

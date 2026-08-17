@@ -1,23 +1,19 @@
 // 주문 CSV 처리 흐름에서 사용하는 폴더, 시트, 트리거 설정이다.
 const ORDER_CONFIG = Object.freeze({
-  folders: {
-    input: 'order_csv_input',
-  },
   sheets: {
     orders: '주문',
     orderItems: '주문상품',
     errors: CONFIG.sheets.errors,
     history: CONFIG.sheets.history,
   },
-  properties: {
-    inputFolderId: 'ORDER_CSV_INPUT_FOLDER_ID',
-  },
-  triggerHandler: 'scanOrderFolder',
   editTriggerHandler: 'handleOrderItemCheckboxEdit',
-  triggerMinutes: 5,
-  defaultOrderStatus: '신규',
+  defaultOrderStatus: '출고대기',
   defaultOrderItemStatus: '등록완료',
   shippedOrderItemStatus: '출고완료',
+  partiallyShippedOrderStatus: '부분출고',
+  canceledOrderStatus: '주문취소',
+  canceledOrderItemStatus: '취소',
+  cancelingOrderItemStatus: '취소처리중',
   defaultErrorStatus: '미처리',
 });
 
@@ -69,6 +65,10 @@ const ORDER_SHEET_HEADERS = Object.freeze([
   '원본파일ID',
   '원본파일명',
   '등록일시',
+  '피킹지시번호',
+  '피킹담당자',
+  '취소사유',
+  '취소일시',
 ]);
 
 // 주문상품 시트에는 CSV의 각 행을 품목 단위로 저장한다.
@@ -85,6 +85,7 @@ const ORDER_ITEM_SHEET_HEADERS = Object.freeze([
   '원본파일ID',
   '원본파일명',
   '등록일시',
+  '처리메모',
 ]);
 
 // 주문 오류 로그는 주문번호와 품목별 주문번호를 함께 보관한다.

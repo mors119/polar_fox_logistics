@@ -7,35 +7,41 @@ function setupSystem() {
     const warnings = [];
     const rootFolder = getRootFolder_();
     const spreadsheet = getOrCreateSpreadsheet_();
-    const productInput = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
-    const orderInput = getOrCreateFolder_(
-      ORDER_CONFIG.properties.inputFolderId,
-      ORDER_CONFIG.folders.input,
-    );
+    const inputFolder = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
     const errorFolder = getOrCreateFolder_(CONFIG.properties.errorFolderId, CONFIG.folders.error);
 
     ensureSettingsSheet_(spreadsheet);
 
     // 상품/주문 흐름은 초기화 시점에 필요한 시트와 헤더를 모두 강제로 맞춘다.
     ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.productRegistration, PRODUCT_REGISTRATION_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inboundPending, INBOUND_WORK_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inboundCompleted, INBOUND_WORK_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inboundErrors, INBOUND_WORK_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.pickingHeaders, PICKING_HEADER_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.pickingLines, PICKING_LINE_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.pickingDashboard, ['피킹 운영 대시보드']);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inventoryHistory, INVENTORY_HISTORY_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
     ensureSheet_(spreadsheet, CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheet_(spreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    applyInboundWorkflowFormats_(spreadsheet);
+    applyPickingWorkflowFormats_(spreadsheet);
+    migrateInventoryModel_();
     SpreadsheetApp.flush();
 
-    runSetupTask_(() => ensureTrigger_(), warnings, '상품 스캔 트리거 생성');
-    runSetupTask_(() => ensureOrderTrigger_(), warnings, '주문 스캔 트리거 생성');
+    runSetupTask_(() => ensureTrigger_(), warnings, '입력 스캔 트리거 생성');
     runSetupTask_(() => ensureOrderEditTrigger_(spreadsheet), warnings, '주문 체크박스 편집 트리거 생성');
+    runSetupTask_(() => ensurePickingTrigger_(), warnings, '피킹 반영 트리거 생성');
     runSetupTask_(() => ensureConfiguredBackupTrigger_(), warnings, '백업 트리거 생성');
 
     const result = {
       rootFolderUrl: rootFolder.getUrl(),
       spreadsheetId: spreadsheet.getId(),
-      productInputFolderUrl: productInput.getUrl(),
-      orderInputFolderUrl: orderInput.getUrl(),
+      inputFolderUrl: inputFolder.getUrl(),
       errorFolderUrl: errorFolder.getUrl(),
       spreadsheetUrl: spreadsheet.getUrl(),
       sheetNames: spreadsheet.getSheets().map((sheet) => sheet.getName()),
@@ -183,6 +189,67 @@ function ensureSheet_(spreadsheet, sheetName, headers) {
   sheet.setFrozenRows(1);
 }
 
+// 상품코드·바코드의 앞자리 0을 보존하고 날짜·수량 표시를 통일한다.
+function applyInboundWorkflowFormats_(spreadsheet) {
+  const registrationSheet = spreadsheet.getSheetByName(CONFIG.sheets.productRegistration);
+  const workSheets = [
+    spreadsheet.getSheetByName(CONFIG.sheets.inboundPending),
+    spreadsheet.getSheetByName(CONFIG.sheets.inboundCompleted),
+    spreadsheet.getSheetByName(CONFIG.sheets.inboundErrors),
+  ];
+
+  applyFormatsByHeader_(registrationSheet, ['상품품목코드', '코드', '바코드'], '@');
+  applyFormatsByHeader_(registrationSheet, ['유효기간'], 'yyyy-mm-dd');
+  applyFormatsByHeader_(registrationSheet, ['안전재고', '적정재고', '박스수량'], '#,##0');
+
+  workSheets.forEach((sheet) => {
+    applyFormatsByHeader_(sheet, ['상품품목코드', '코드', '바코드'], '@');
+    applyFormatsByHeader_(sheet, ['입고예정일', '실제입고일', '유효기간'], 'yyyy-mm-dd');
+    applyFormatsByHeader_(
+      sheet,
+      ['입고예정수량', '실제입고수량', '정상수량', '불량수량', '부족수량', '초과수량'],
+      '#,##0',
+    );
+  });
+}
+
+function applyPickingWorkflowFormats_(spreadsheet) {
+  const lineSheet = spreadsheet.getSheetByName(CONFIG.sheets.pickingLines);
+  if (!lineSheet) return;
+
+  applyFormatsByHeader_(lineSheet, ['품목별 주문번호', '주문번호', '상품품목코드'], '@');
+  const headerMap = getHeaderIndexMap_(lineSheet);
+  const rowCount = Math.max(lineSheet.getMaxRows() - 1, 1);
+  if (headerMap['확인']) {
+    const confirmationRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(['O', 'X'], true)
+      .setAllowInvalid(false)
+      .build();
+    lineSheet.getRange(2, headerMap['확인'], rowCount, 1).setDataValidation(confirmationRule);
+  }
+  if (headerMap['예외사유']) {
+    const reasonRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(['재고없음', '불량재고', '상품불일치', '기타'], true)
+      .setAllowInvalid(true)
+      .build();
+    lineSheet.getRange(2, headerMap['예외사유'], rowCount, 1).setDataValidation(reasonRule);
+  }
+}
+
+function applyFormatsByHeader_(sheet, headers, numberFormat) {
+  if (!sheet) {
+    return;
+  }
+
+  const headerMap = getHeaderIndexMap_(sheet);
+  const rowCount = Math.max(sheet.getMaxRows() - 1, 1);
+  headers.forEach((header) => {
+    if (headerMap[header]) {
+      sheet.getRange(2, headerMap[header], rowCount, 1).setNumberFormat(numberFormat);
+    }
+  });
+}
+
 // 기본 빈 탭이 있으면 설정 시트로 재사용하고, 없으면 새로 만든다.
 function getOrCreateSettingsSheet_(spreadsheet) {
   let sheet = spreadsheet.getSheetByName(CONFIG.sheets.settings);
@@ -222,6 +289,10 @@ function ensureSettingsSheet_(spreadsheet) {
   sheet.getRange(1, 1, 1, headerRow.length).setValues([headerRow]);
   sheet.setFrozenRows(1);
 
+  const legacyTriggerValue =
+    (rowMap['상품 트리거 분'] && rowMap['상품 트리거 분'].value) ||
+    (rowMap['주문 트리거 분'] && rowMap['주문 트리거 분'].value);
+
   SETTINGS_SHEET_ROWS.forEach(([key, defaultValue, description]) => {
     const existing = rowMap[key];
 
@@ -232,8 +303,19 @@ function ensureSettingsSheet_(spreadsheet) {
       return;
     }
 
-    sheet.appendRow([key, defaultValue, description]);
+    const migratedDefault =
+      key === CONFIG.settingsKeys.inputTriggerMinutes && legacyTriggerValue
+        ? legacyTriggerValue
+        : defaultValue;
+    sheet.appendRow([key, migratedDefault, description]);
   });
+
+  // 구 버전의 상품/주문 전용 트리거 설정은 공통 입력 설정으로 값을 옮긴 뒤 제거한다.
+  ['상품 트리거 분', '주문 트리거 분']
+    .map((key) => rowMap[key] && rowMap[key].rowNumber)
+    .filter(Boolean)
+    .sort((left, right) => right - left)
+    .forEach((rowNumber) => sheet.deleteRow(rowNumber));
 
   sheet.autoResizeColumns(1, 3);
   applySettingsSheetFormats_(sheet);
@@ -276,39 +358,23 @@ function getSpreadsheet_() {
   return SpreadsheetApp.openById(spreadsheetId);
 }
 
-// 상품 CSV 스캔 트리거는 중복 생성되지 않도록 기존 것을 지우고 다시 만든다.
+// 상품/주문 공통 스캔 트리거는 기존 전용 트리거까지 정리하고 하나만 생성한다.
 function ensureTrigger_() {
   const settings = getSettingsMap_();
   const triggerMinutes = parseRecurringTriggerMinutes_(
-    settings[CONFIG.settingsKeys.productTriggerMinutes],
+    settings[CONFIG.settingsKeys.inputTriggerMinutes],
     CONFIG.triggerMinutes,
-    CONFIG.settingsKeys.productTriggerMinutes,
+    CONFIG.settingsKeys.inputTriggerMinutes,
   );
+  const legacyHandlers = ['scanCsvInputFolder', 'scanOrderFolder'];
 
   ScriptApp.getProjectTriggers()
-    .filter((trigger) => trigger.getHandlerFunction() === CONFIG.triggerHandler)
+    .filter((trigger) =>
+      [CONFIG.triggerHandler, ...legacyHandlers].includes(trigger.getHandlerFunction()),
+    )
     .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
 
   ScriptApp.newTrigger(CONFIG.triggerHandler)
-    .timeBased()
-    .everyMinutes(triggerMinutes)
-    .create();
-}
-
-// 주문 트리거는 중복 생성되지 않도록 기존 것을 지우고 다시 만든다.
-function ensureOrderTrigger_() {
-  const settings = getSettingsMap_();
-  const triggerMinutes = parseRecurringTriggerMinutes_(
-    settings[CONFIG.settingsKeys.orderTriggerMinutes],
-    ORDER_CONFIG.triggerMinutes,
-    CONFIG.settingsKeys.orderTriggerMinutes,
-  );
-
-  ScriptApp.getProjectTriggers()
-    .filter((trigger) => trigger.getHandlerFunction() === ORDER_CONFIG.triggerHandler)
-    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
-
-  ScriptApp.newTrigger(ORDER_CONFIG.triggerHandler)
     .timeBased()
     .everyMinutes(triggerMinutes)
     .create();
@@ -323,6 +389,23 @@ function ensureOrderEditTrigger_(spreadsheet) {
   ScriptApp.newTrigger(ORDER_CONFIG.editTriggerHandler)
     .forSpreadsheet(spreadsheet)
     .onEdit()
+    .create();
+}
+
+function ensurePickingTrigger_() {
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === CONFIG.pickingTriggerHandler)
+    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
+
+  const settings = getSettingsMap_();
+  const triggerMinutes = parseRecurringTriggerMinutes_(
+    settings[CONFIG.settingsKeys.pickingTriggerMinutes],
+    5,
+    CONFIG.settingsKeys.pickingTriggerMinutes,
+  );
+  ScriptApp.newTrigger(CONFIG.pickingTriggerHandler)
+    .timeBased()
+    .everyMinutes(triggerMinutes)
     .create();
 }
 
@@ -429,28 +512,22 @@ function ensureConfiguredBackupTrigger_() {
   };
 }
 
-// 설정 변경 후 이 함수를 실행하면 상품, 주문, 백업 트리거를 현재 설정값 기준으로 다시 만든다.
+// 설정 변경 후 이 함수를 실행하면 입력, 주문 편집, 백업 트리거를 현재 설정값 기준으로 다시 만든다.
 function syncConfiguredTriggers() {
   const settings = getSettingsMap_();
-  const importTriggerMinutes = parseRecurringTriggerMinutes_(
-    settings[CONFIG.settingsKeys.productTriggerMinutes],
+  const inputTriggerMinutes = parseRecurringTriggerMinutes_(
+    settings[CONFIG.settingsKeys.inputTriggerMinutes],
     CONFIG.triggerMinutes,
-    CONFIG.settingsKeys.productTriggerMinutes,
-  );
-  const orderTriggerMinutes = parseRecurringTriggerMinutes_(
-    settings[CONFIG.settingsKeys.orderTriggerMinutes],
-    ORDER_CONFIG.triggerMinutes,
-    CONFIG.settingsKeys.orderTriggerMinutes,
+    CONFIG.settingsKeys.inputTriggerMinutes,
   );
 
   ensureTrigger_();
-  ensureOrderTrigger_();
   ensureOrderEditTrigger_(getSpreadsheet_());
+  ensurePickingTrigger_();
   const backupTrigger = ensureConfiguredBackupTrigger_();
 
   const result = {
-    importTriggerMinutes,
-    orderTriggerMinutes,
+    inputTriggerMinutes,
     backupTrigger,
   };
 
@@ -665,7 +742,6 @@ function authorizeAll() {
   getRootFolder_().getId();
   getSpreadsheet_().getId();
   getConfiguredFolder_(CONFIG.properties.inputFolderId).getId();
-  getConfiguredFolder_(ORDER_CONFIG.properties.inputFolderId).getId();
 
   const settings = getSettingsMap_();
   const hasBackupSettings =

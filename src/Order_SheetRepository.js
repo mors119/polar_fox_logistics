@@ -48,6 +48,10 @@ function importOrders(file, groupedOrders) {
       file.getId(),
       file.getName(),
       now,
+      '',
+      '',
+      '',
+      '',
     ]);
   });
 
@@ -78,6 +82,7 @@ function importOrderItems(file, rows) {
     file.getId(),
     file.getName(),
     now,
+    '',
   ]);
 
   const writeResult = appendRowsToSheet_(sheet, values);
@@ -110,6 +115,11 @@ function rollbackImportedRows(context) {
     restoreProductStockSnapshots_(context.productStockSnapshots);
   }
 
+  rollbackInventoryHistory_(
+    context.inventoryHistoryStartRow || 0,
+    context.inventoryHistoryRowCount || 0,
+  );
+
   if (context.orderItemRowCount > 0 && context.orderItemStartRow) {
     orderItemSheet.deleteRows(context.orderItemStartRow, context.orderItemRowCount);
   }
@@ -119,8 +129,8 @@ function rollbackImportedRows(context) {
   }
 }
 
-// 주문이 성공적으로 적재되면 상품마스터의 가용재고를 줄이고 발송대기를 늘린다.
-function applyOrderInventoryAdjustments_(rows) {
+// 주문이 적재되면 실물 재고는 유지하고 발송대기만 늘려 수량을 예약한다.
+function applyOrderInventoryAdjustments_(rows, file) {
   const productSheet = getSheet_(CONFIG.sheets.products);
   const headerMap = getHeaderIndexMap_(productSheet);
   const productCodeColumn = headerMap['상품품목코드'];
@@ -151,9 +161,14 @@ function applyOrderInventoryAdjustments_(rows) {
     .getDisplayValues()
     .flat()
     .map((value) => String(value || '').trim());
-  const availableStocks = productSheet.getRange(2, availableStockColumn, lastRow - 1, 1).getValues();
+  const availableStocks = productSheet
+    .getRange(2, availableStockColumn, lastRow - 1, 1)
+    .getValues();
   const pendingStocks = productSheet.getRange(2, pendingStockColumn, lastRow - 1, 1).getValues();
+  const productRecords = getSheetRecords_(productSheet);
   const snapshots = [];
+  const changes = [];
+  const adjustments = [];
 
   Object.keys(requestedQuantityMap).forEach((productCode) => {
     const rowIndex = productCodes.indexOf(productCode);
@@ -171,21 +186,67 @@ function applyOrderInventoryAdjustments_(rows) {
     const pendingStock = Number(pendingStocks[rowIndex][0] || 0);
     const requestedQuantity = requestedQuantityMap[productCode];
 
+    if (requestedQuantity > availableStock - pendingStock) {
+      throw appError_(
+        'INSUFFICIENT_STOCK',
+        `재고 부족: ${productCode} 주문합계 ${requestedQuantity}, 출고후잔량 ${availableStock - pendingStock}`,
+        'INVENTORY_APPLY',
+      );
+    }
+
     snapshots.push({
       rowNumber: sheetRowNumber,
       availableStock,
       pendingStock,
     });
-
-    productSheet.getRange(sheetRowNumber, availableStockColumn).setValue(
-      availableStock - requestedQuantity,
-    );
-    productSheet.getRange(sheetRowNumber, pendingStockColumn).setValue(
-      pendingStock + requestedQuantity,
-    );
+    adjustments.push({
+      rowNumber: sheetRowNumber,
+      availableStock,
+      pendingStock: pendingStock + requestedQuantity,
+    });
+    const relatedOrderNumbers = rows
+      .filter((row) => getTrimmedField_(row, '상품품목코드') === productCode)
+      .map((row) => getTrimmedField_(row, '주문번호'))
+      .filter((value, index, values) => value && values.indexOf(value) === index);
+    const productRecord = productRecords[rowIndex] || {};
+    changes.push({
+      type: '주문예약',
+      productCode,
+      productName: getRecordValueByAliases_(productRecord, '상품명'),
+      option: getRecordValueByAliases_(productRecord, '옵션'),
+      availableDelta: 0,
+      pendingDelta: requestedQuantity,
+      availableAfter: availableStock,
+      pendingAfter: pendingStock + requestedQuantity,
+      orderNumber: relatedOrderNumbers.join(', '),
+      sourceFileName: file ? file.getName() : '',
+    });
   });
 
-  return snapshots;
+  try {
+    adjustments.forEach((adjustment) => {
+      productSheet
+        .getRange(adjustment.rowNumber, pendingStockColumn)
+        .setValue(adjustment.pendingStock);
+      updateProductInventoryIndicators_(productSheet, adjustment.rowNumber, headerMap, {
+        availableStock: adjustment.availableStock,
+        pendingStock: adjustment.pendingStock,
+        safetyStock: Number(
+          productSheet.getRange(adjustment.rowNumber, headerMap['안전재고']).getValue() || 0,
+        ),
+      });
+    });
+
+    const historyRange = appendInventoryHistory_(changes);
+    return {
+      snapshots,
+      historyStartRow: historyRange.startRow,
+      historyRowCount: historyRange.rowCount,
+    };
+  } catch (error) {
+    restoreProductStockSnapshots_(snapshots);
+    throw error;
+  }
 }
 
 // 재고 조정 도중 실패하면 주문 전 값으로 원복한다.
@@ -196,8 +257,17 @@ function restoreProductStockSnapshots_(snapshots) {
   const pendingStockColumn = headerMap['발송대기'];
 
   snapshots.forEach((snapshot) => {
-    productSheet.getRange(snapshot.rowNumber, availableStockColumn).setValue(snapshot.availableStock);
+    productSheet
+      .getRange(snapshot.rowNumber, availableStockColumn)
+      .setValue(snapshot.availableStock);
     productSheet.getRange(snapshot.rowNumber, pendingStockColumn).setValue(snapshot.pendingStock);
+    updateProductInventoryIndicators_(productSheet, snapshot.rowNumber, headerMap, {
+      availableStock: snapshot.availableStock,
+      pendingStock: snapshot.pendingStock,
+      safetyStock: Number(
+        productSheet.getRange(snapshot.rowNumber, headerMap['안전재고']).getValue() || 0,
+      ),
+    });
   });
 }
 
