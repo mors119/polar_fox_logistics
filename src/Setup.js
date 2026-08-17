@@ -14,6 +14,13 @@ function setupSystem() {
 
     // 상품/주문 흐름은 초기화 시점에 필요한 시트와 헤더를 모두 강제로 맞춘다.
     ensureSheet_(spreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.productRegistration, PRODUCT_REGISTRATION_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inboundPending, INBOUND_WORK_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inboundCompleted, INBOUND_WORK_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.inboundErrors, INBOUND_WORK_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.pickingHeaders, PICKING_HEADER_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.pickingLines, PICKING_LINE_HEADERS);
+    ensureSheet_(spreadsheet, CONFIG.sheets.pickingDashboard, ['피킹 운영 대시보드']);
     ensureSheet_(spreadsheet, CONFIG.sheets.inventoryHistory, INVENTORY_HISTORY_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
     ensureSheet_(spreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
@@ -21,11 +28,14 @@ function setupSystem() {
     ensureSheet_(spreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
     ensureSheetContainsHeaders_(spreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    applyInboundWorkflowFormats_(spreadsheet);
+    applyPickingWorkflowFormats_(spreadsheet);
     migrateInventoryModel_();
     SpreadsheetApp.flush();
 
     runSetupTask_(() => ensureTrigger_(), warnings, '입력 스캔 트리거 생성');
     runSetupTask_(() => ensureOrderEditTrigger_(spreadsheet), warnings, '주문 체크박스 편집 트리거 생성');
+    runSetupTask_(() => ensurePickingTrigger_(), warnings, '피킹 반영 트리거 생성');
     runSetupTask_(() => ensureConfiguredBackupTrigger_(), warnings, '백업 트리거 생성');
 
     const result = {
@@ -179,6 +189,67 @@ function ensureSheet_(spreadsheet, sheetName, headers) {
   sheet.setFrozenRows(1);
 }
 
+// 상품코드·바코드의 앞자리 0을 보존하고 날짜·수량 표시를 통일한다.
+function applyInboundWorkflowFormats_(spreadsheet) {
+  const registrationSheet = spreadsheet.getSheetByName(CONFIG.sheets.productRegistration);
+  const workSheets = [
+    spreadsheet.getSheetByName(CONFIG.sheets.inboundPending),
+    spreadsheet.getSheetByName(CONFIG.sheets.inboundCompleted),
+    spreadsheet.getSheetByName(CONFIG.sheets.inboundErrors),
+  ];
+
+  applyFormatsByHeader_(registrationSheet, ['상품품목코드', '코드', '바코드'], '@');
+  applyFormatsByHeader_(registrationSheet, ['유효기간'], 'yyyy-mm-dd');
+  applyFormatsByHeader_(registrationSheet, ['안전재고', '적정재고', '박스수량'], '#,##0');
+
+  workSheets.forEach((sheet) => {
+    applyFormatsByHeader_(sheet, ['상품품목코드', '코드', '바코드'], '@');
+    applyFormatsByHeader_(sheet, ['입고예정일', '실제입고일', '유효기간'], 'yyyy-mm-dd');
+    applyFormatsByHeader_(
+      sheet,
+      ['입고예정수량', '실제입고수량', '정상수량', '불량수량', '부족수량', '초과수량'],
+      '#,##0',
+    );
+  });
+}
+
+function applyPickingWorkflowFormats_(spreadsheet) {
+  const lineSheet = spreadsheet.getSheetByName(CONFIG.sheets.pickingLines);
+  if (!lineSheet) return;
+
+  applyFormatsByHeader_(lineSheet, ['품목별 주문번호', '주문번호', '상품품목코드'], '@');
+  const headerMap = getHeaderIndexMap_(lineSheet);
+  const rowCount = Math.max(lineSheet.getMaxRows() - 1, 1);
+  if (headerMap['확인']) {
+    const confirmationRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(['O', 'X'], true)
+      .setAllowInvalid(false)
+      .build();
+    lineSheet.getRange(2, headerMap['확인'], rowCount, 1).setDataValidation(confirmationRule);
+  }
+  if (headerMap['예외사유']) {
+    const reasonRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(['재고없음', '불량재고', '상품불일치', '기타'], true)
+      .setAllowInvalid(true)
+      .build();
+    lineSheet.getRange(2, headerMap['예외사유'], rowCount, 1).setDataValidation(reasonRule);
+  }
+}
+
+function applyFormatsByHeader_(sheet, headers, numberFormat) {
+  if (!sheet) {
+    return;
+  }
+
+  const headerMap = getHeaderIndexMap_(sheet);
+  const rowCount = Math.max(sheet.getMaxRows() - 1, 1);
+  headers.forEach((header) => {
+    if (headerMap[header]) {
+      sheet.getRange(2, headerMap[header], rowCount, 1).setNumberFormat(numberFormat);
+    }
+  });
+}
+
 // 기본 빈 탭이 있으면 설정 시트로 재사용하고, 없으면 새로 만든다.
 function getOrCreateSettingsSheet_(spreadsheet) {
   let sheet = spreadsheet.getSheetByName(CONFIG.sheets.settings);
@@ -321,6 +392,23 @@ function ensureOrderEditTrigger_(spreadsheet) {
     .create();
 }
 
+function ensurePickingTrigger_() {
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === CONFIG.pickingTriggerHandler)
+    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
+
+  const settings = getSettingsMap_();
+  const triggerMinutes = parseRecurringTriggerMinutes_(
+    settings[CONFIG.settingsKeys.pickingTriggerMinutes],
+    5,
+    CONFIG.settingsKeys.pickingTriggerMinutes,
+  );
+  ScriptApp.newTrigger(CONFIG.pickingTriggerHandler)
+    .timeBased()
+    .everyMinutes(triggerMinutes)
+    .create();
+}
+
 // 공용 오류/이력 시트는 기존 헤더를 보존하면서 필요한 컬럼만 추가한다.
 function ensureSheetContainsHeaders_(spreadsheet, sheetName, requiredHeaders) {
   let sheet = spreadsheet.getSheetByName(sheetName);
@@ -435,6 +523,7 @@ function syncConfiguredTriggers() {
 
   ensureTrigger_();
   ensureOrderEditTrigger_(getSpreadsheet_());
+  ensurePickingTrigger_();
   const backupTrigger = ensureConfiguredBackupTrigger_();
 
   const result = {

@@ -42,7 +42,7 @@ function handleOrderItemCheckboxEdit(e) {
 }
 
 // 체크되면 실제 출고로 가용재고와 발송대기를 함께 줄이고, 해제 시 되돌린다.
-function syncOrderItemCheckboxState_(orderItemSheet, rowNumber, isChecked) {
+function syncOrderItemCheckboxState_(orderItemSheet, rowNumber, isChecked, options) {
   const headerMap = getHeaderIndexMap_(orderItemSheet);
   const productCode = getSheetTextByHeader_(orderItemSheet, rowNumber, headerMap, '상품품목코드');
   const quantityText = getSheetTextByHeader_(orderItemSheet, rowNumber, headerMap, '수량');
@@ -55,9 +55,20 @@ function syncOrderItemCheckboxState_(orderItemSheet, rowNumber, isChecked) {
     '품목별 주문번호',
   );
   const quantity = parseIntegerField_(quantityText);
+  const allowPicking = options && options.allowPicking;
 
   if (!productCode || quantity === null || quantity < 1) {
     throw new Error(`주문상품 ${rowNumber}행의 상품코드 또는 수량이 올바르지 않습니다.`);
+  }
+
+  if (
+    [ORDER_CONFIG.canceledOrderItemStatus, ORDER_CONFIG.cancelingOrderItemStatus].includes(status)
+  ) {
+    throw new Error(`취소된 주문상품은 출고 체크를 변경할 수 없습니다: ${orderItemNumber}`);
+  }
+
+  if (!allowPicking && isOrderAssignedToPicking_(orderNumber)) {
+    throw new Error(`피킹지시가 생성된 주문은 피킹라인에서 처리하세요: ${orderNumber}`);
   }
 
   if (isChecked && status === ORDER_CONFIG.shippedOrderItemStatus) {
@@ -114,6 +125,15 @@ function syncOrderItemCheckboxState_(orderItemSheet, rowNumber, isChecked) {
     setSheetCellByHeader_(orderItemSheet, rowNumber, headerMap, '처리상태', previousStatus);
     throw error;
   }
+}
+
+function isOrderAssignedToPicking_(orderNumber) {
+  if (!orderNumber) return false;
+  const orderSheet = getSheet_(ORDER_CONFIG.sheets.orders);
+  const order = getSheetRecords_(orderSheet).find(
+    (record) => String(record['주문번호'] || '').trim() === orderNumber,
+  );
+  return Boolean(order && String(order['피킹지시번호'] || '').trim());
 }
 
 // 품목 처리상태를 모아 주문을 출고대기, 부분출고, 출고완료로 자동 갱신한다.

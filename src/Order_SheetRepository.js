@@ -48,6 +48,10 @@ function importOrders(file, groupedOrders) {
       file.getId(),
       file.getName(),
       now,
+      '',
+      '',
+      '',
+      '',
     ]);
   });
 
@@ -78,6 +82,7 @@ function importOrderItems(file, rows) {
     file.getId(),
     file.getName(),
     now,
+    '',
   ]);
 
   const writeResult = appendRowsToSheet_(sheet, values);

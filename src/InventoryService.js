@@ -54,6 +54,7 @@ function buildInventoryHistoryRow_(change) {
     change.orderItemNumber || '',
     change.sourceFileName || '',
     change.note || '',
+    change.taskId || '',
   ];
 }
 
