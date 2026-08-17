@@ -78,12 +78,14 @@ function getSettingsMap_() {
 
 // 백업 대상 시트는 쉼표 또는 줄바꿈 구분으로 입력받는다.
 function parseBackupSheetNames_(value) {
-  return [...new Set(
-    String(value || '')
-      .split(/[\n,]/)
-      .map((name) => name.trim())
-      .filter(Boolean),
-  )];
+  return [
+    ...new Set(
+      String(value || '')
+        .split(/[\n,]/)
+        .map((name) => name.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 // 설정값으로 지정된 시트명이 실제 운영 스프레드시트에 모두 존재하는지 확인한다.
@@ -112,7 +114,9 @@ function createBackupSpreadsheetFile_(sourceSpreadsheet, sheets) {
     Session.getScriptTimeZone(),
     'yyyyMMdd_HHmmss',
   );
-  const tempSpreadsheet = SpreadsheetApp.create(`${sourceSpreadsheet.getName()}_backup_${timestamp}`);
+  const tempSpreadsheet = SpreadsheetApp.create(
+    `${sourceSpreadsheet.getName()}_backup_${timestamp}`,
+  );
   const tempFile = DriveApp.getFileById(tempSpreadsheet.getId());
   const defaultSheet = tempSpreadsheet.getSheets()[0];
 

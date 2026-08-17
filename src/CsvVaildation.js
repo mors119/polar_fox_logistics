@@ -76,8 +76,7 @@ function isExcelFile_(file) {
     name.endsWith('.xlsx') ||
     name.endsWith('.xls') ||
     mimeType === MimeType.MICROSOFT_EXCEL ||
-    mimeType ===
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
     mimeType === 'application/vnd.ms-excel'
   );
 }
