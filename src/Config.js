@@ -40,6 +40,9 @@ const CONFIG = Object.freeze({
   properties: {
     rootFolderId: 'ROOT_FOLDER_ID',
     spreadsheetId: 'OPERATIONS_SPREADSHEET_ID',
+    adminSpreadsheetId: 'ADMIN_SPREADSHEET_ID',
+    workerSpreadsheetId: 'WORKER_SPREADSHEET_ID',
+    // 아래 4개 키는 기존 운영 파일의 데이터를 2파일 구조로 옮길 때만 사용한다.
     mainSpreadsheetId: 'MAIN_SPREADSHEET_ID',
     inboundSpreadsheetId: 'INBOUND_SPREADSHEET_ID',
     pickingSpreadsheetId: 'PICKING_SPREADSHEET_ID',
@@ -51,10 +54,8 @@ const CONFIG = Object.freeze({
   },
   backupExportMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   spreadsheetFiles: {
-    main: '01_메인데이터_수정금지',
-    inbound: '02_상품입고_작업',
-    picking: '03_피킹_작업',
-    dashboard: '04_운영대시보드_조회용',
+    admin: '01_관리자용',
+    worker: '02_업무인원용',
   },
   triggerHandler: 'scanInputFolder',
   backupTriggerHandler: 'sendConfiguredBackupEmail',
@@ -63,31 +64,29 @@ const CONFIG = Object.freeze({
 });
 
 const SPREADSHEET_GROUP_PROPERTIES = Object.freeze({
-  main: CONFIG.properties.mainSpreadsheetId,
-  inbound: CONFIG.properties.inboundSpreadsheetId,
-  picking: CONFIG.properties.pickingSpreadsheetId,
-  dashboard: CONFIG.properties.dashboardSpreadsheetId,
+  admin: CONFIG.properties.adminSpreadsheetId,
+  worker: CONFIG.properties.workerSpreadsheetId,
 });
 
 const SHEET_SPREADSHEET_GROUPS = Object.freeze({
-  [CONFIG.sheets.settings]: 'main',
-  [CONFIG.sheets.products]: 'main',
-  [CONFIG.sheets.inventoryHistory]: 'main',
-  [CONFIG.sheets.errors]: 'main',
-  [CONFIG.sheets.history]: 'main',
-  [CONFIG.sheets.completedOrders]: 'dashboard',
-  주문: 'main',
-  주문상품: 'main',
-  [CONFIG.sheets.productRegistration]: 'inbound',
-  [CONFIG.sheets.inboundPending]: 'inbound',
-  [CONFIG.sheets.inboundCompleted]: 'inbound',
-  [CONFIG.sheets.inboundErrors]: 'inbound',
-  [CONFIG.sheets.pickingHeaders]: 'picking',
-  [CONFIG.sheets.pickingLines]: 'picking',
-  [CONFIG.sheets.inventoryDashboard]: 'dashboard',
-  [CONFIG.sheets.orderDashboard]: 'dashboard',
-  [CONFIG.sheets.pickingDashboard]: 'dashboard',
-  [CONFIG.sheets.crossCheckDashboard]: 'dashboard',
+  [CONFIG.sheets.settings]: 'admin',
+  [CONFIG.sheets.products]: 'admin',
+  [CONFIG.sheets.inventoryHistory]: 'admin',
+  [CONFIG.sheets.errors]: 'admin',
+  [CONFIG.sheets.history]: 'admin',
+  [CONFIG.sheets.completedOrders]: 'admin',
+  주문: 'admin',
+  주문상품: 'admin',
+  [CONFIG.sheets.productRegistration]: 'worker',
+  [CONFIG.sheets.inboundPending]: 'worker',
+  [CONFIG.sheets.inboundCompleted]: 'worker',
+  [CONFIG.sheets.inboundErrors]: 'worker',
+  [CONFIG.sheets.pickingHeaders]: 'worker',
+  [CONFIG.sheets.pickingLines]: 'worker',
+  [CONFIG.sheets.inventoryDashboard]: 'admin',
+  [CONFIG.sheets.orderDashboard]: 'admin',
+  [CONFIG.sheets.pickingDashboard]: 'admin',
+  [CONFIG.sheets.crossCheckDashboard]: 'admin',
 });
 
 // 상품 CSV에서 허용하는 전체 헤더 목록이다.
@@ -287,8 +286,9 @@ const INBOUND_WORK_HEADERS = Object.freeze([
 
 const PICKING_HEADER_HEADERS = Object.freeze([
   '피킹지시번호',
-  '주문번호',
   '카트 슬롯',
+  '주문번호',
+  '수령인',
   '품목수',
   '총수량',
   '피킹담당자',
@@ -299,6 +299,7 @@ const PICKING_HEADER_HEADERS = Object.freeze([
 ]);
 
 const PICKING_LINE_HEADERS = Object.freeze([
+  '주문묶음',
   '순번',
   '보관위치',
   '상품코드',
@@ -306,6 +307,8 @@ const PICKING_LINE_HEADERS = Object.freeze([
   '상품명',
   '옵션',
   '필요수량',
+  '현재재고',
+  '출고후재고',
   '확인',
   '실제수량',
   '예외사유',

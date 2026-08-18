@@ -17,26 +17,30 @@ const context = vm.createContext({ console });
   vm.runInContext(fs.readFileSync(filePath, 'utf8'), context, { filename: filePath });
 });
 
-test('업무 시트를 메인·입고·피킹·대시보드 파일로 분리한다', () => {
+test('운영 시트를 관리자용·업무인원용 두 파일로 분리한다', () => {
+  assert.equal(
+    vm.runInContext('Object.keys(CONFIG.spreadsheetFiles).join(",")', context),
+    'admin,worker',
+  );
   assert.equal(
     vm.runInContext('SHEET_SPREADSHEET_GROUPS[CONFIG.sheets.products]', context),
-    'main',
+    'admin',
   );
   assert.equal(
     vm.runInContext('SHEET_SPREADSHEET_GROUPS[CONFIG.sheets.inboundPending]', context),
-    'inbound',
+    'worker',
   );
   assert.equal(
     vm.runInContext('SHEET_SPREADSHEET_GROUPS[CONFIG.sheets.pickingLines]', context),
-    'picking',
+    'worker',
   );
   assert.equal(
     vm.runInContext('SHEET_SPREADSHEET_GROUPS[CONFIG.sheets.crossCheckDashboard]', context),
-    'dashboard',
+    'admin',
   );
   assert.equal(
     vm.runInContext('SHEET_SPREADSHEET_GROUPS[CONFIG.sheets.completedOrders]', context),
-    'dashboard',
+    'admin',
   );
 });
 

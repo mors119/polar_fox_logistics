@@ -1,6 +1,7 @@
 // 공통 input 폴더를 순회하면서 헤더 구조에 따라 상품/주문 처리 흐름으로 자동 분기한다.
 function scanInputFolder() {
   const lock = LockService.getScriptLock();
+  let processedSupportedFile = false;
 
   if (!lock.tryLock(1000)) {
     console.log('다른 입력 파일 작업이 실행 중입니다.');
@@ -24,9 +25,18 @@ function scanInputFolder() {
       }
 
       routeInputFile_(file);
+      processedSupportedFile = true;
     }
   } finally {
     lock.releaseLock();
+  }
+
+  if (processedSupportedFile) {
+    try {
+      createPickingInstruction();
+    } catch (error) {
+      console.error('입력 처리 후 피킹지시 자동 생성 실패', error);
+    }
   }
 }
 

@@ -6,12 +6,10 @@ function setupSystem() {
   try {
     const warnings = [];
     const rootFolder = getRootFolder_();
-    const legacySpreadsheet = getLegacySpreadsheetForMigration_();
+    const legacySpreadsheets = getLegacySpreadsheetsForMigration_();
     const spreadsheets = getOrCreateSystemSpreadsheets_();
-    const mainSpreadsheet = spreadsheets.main;
-    const inboundSpreadsheet = spreadsheets.inbound;
-    const pickingSpreadsheet = spreadsheets.picking;
-    const dashboardSpreadsheet = spreadsheets.dashboard;
+    const adminSpreadsheet = spreadsheets.admin;
+    const workerSpreadsheet = spreadsheets.worker;
     const inputFolder = getOrCreateFolder_(CONFIG.properties.inputFolderId, CONFIG.folders.input);
     const successFolder = getOrCreateFolder_(
       CONFIG.properties.successFolderId,
@@ -19,43 +17,51 @@ function setupSystem() {
     );
     const errorFolder = getOrCreateFolder_(CONFIG.properties.errorFolderId, CONFIG.folders.error);
 
-    seedSystemSheetsFromLegacy_(spreadsheets, legacySpreadsheet);
-    ensureSettingsSheet_(mainSpreadsheet);
+    seedSystemSheetsFromLegacy_(spreadsheets, legacySpreadsheets);
+    ensureSettingsSheet_(adminSpreadsheet);
 
-    // 메인 데이터, 작업 시트, 조회 화면을 물리적으로 다른 스프레드시트에 만든다.
-    ensureSheetWithMappedHeaders_(mainSpreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
-    ensureSheet_(mainSpreadsheet, CONFIG.sheets.inventoryHistory, INVENTORY_HISTORY_HEADERS);
-    ensureSheet_(mainSpreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
-    ensureSheet_(mainSpreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
-    ensureSheet_(mainSpreadsheet, CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
-    ensureSheet_(mainSpreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
-    ensureSheetContainsHeaders_(mainSpreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
-    ensureSheetContainsHeaders_(mainSpreadsheet, ORDER_CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    // 원본·설정·대시보드는 관리자용, 입고·피킹은 업무인원용 파일에 만든다.
+    ensureSheetWithMappedHeaders_(adminSpreadsheet, CONFIG.sheets.products, PRODUCT_SHEET_HEADERS);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.inventoryHistory, INVENTORY_HISTORY_HEADERS);
+    ensureSheet_(adminSpreadsheet, ORDER_CONFIG.sheets.orders, ORDER_SHEET_HEADERS);
+    ensureSheet_(adminSpreadsheet, ORDER_CONFIG.sheets.orderItems, ORDER_ITEM_SHEET_HEADERS);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.history, FILE_HISTORY_HEADERS);
+    ensureSheetContainsHeaders_(adminSpreadsheet, ORDER_CONFIG.sheets.errors, ERROR_SHEET_HEADERS);
+    ensureSheetContainsHeaders_(
+      adminSpreadsheet,
+      ORDER_CONFIG.sheets.history,
+      FILE_HISTORY_HEADERS,
+    );
 
     ensureSheet_(
-      inboundSpreadsheet,
+      workerSpreadsheet,
       CONFIG.sheets.productRegistration,
       PRODUCT_REGISTRATION_HEADERS,
     );
-    ensureSheet_(inboundSpreadsheet, CONFIG.sheets.inboundPending, INBOUND_WORK_HEADERS);
-    ensureSheet_(inboundSpreadsheet, CONFIG.sheets.inboundCompleted, INBOUND_WORK_HEADERS);
-    ensureSheet_(inboundSpreadsheet, CONFIG.sheets.inboundErrors, INBOUND_WORK_HEADERS);
+    ensureSheet_(workerSpreadsheet, CONFIG.sheets.inboundPending, INBOUND_WORK_HEADERS);
+    ensureSheet_(workerSpreadsheet, CONFIG.sheets.inboundCompleted, INBOUND_WORK_HEADERS);
+    ensureSheet_(workerSpreadsheet, CONFIG.sheets.inboundErrors, INBOUND_WORK_HEADERS);
 
-    ensureSheet_(pickingSpreadsheet, CONFIG.sheets.pickingHeaders, PICKING_HEADER_HEADERS);
-    ensureSheet_(pickingSpreadsheet, CONFIG.sheets.pickingLines, PICKING_LINE_HEADERS);
-
-    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.inventoryDashboard, ['📊  재고 현황']);
-    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.orderDashboard, ['📊  주문 현황']);
-    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.pickingDashboard, ['📦  피킹 현황']);
-    ensureSheet_(dashboardSpreadsheet, CONFIG.sheets.crossCheckDashboard, ['🔗  교차검증']);
-    ensureSheet_(
-      dashboardSpreadsheet,
-      CONFIG.sheets.completedOrders,
-      LATEST_COMPLETED_ORDER_HEADERS,
+    ensureSheetWithMappedHeaders_(
+      workerSpreadsheet,
+      CONFIG.sheets.pickingHeaders,
+      PICKING_HEADER_HEADERS,
+    );
+    ensureSheetWithMappedHeaders_(
+      workerSpreadsheet,
+      CONFIG.sheets.pickingLines,
+      PICKING_LINE_HEADERS,
     );
 
-    applyInboundWorkflowFormats_(mainSpreadsheet, inboundSpreadsheet);
-    applyPickingWorkflowFormats_(pickingSpreadsheet);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.inventoryDashboard, ['📊  재고 현황']);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.orderDashboard, ['📊  주문 현황']);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.pickingDashboard, ['📦  피킹 현황']);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.crossCheckDashboard, ['🔗  교차검증']);
+    ensureSheet_(adminSpreadsheet, CONFIG.sheets.completedOrders, LATEST_COMPLETED_ORDER_HEADERS);
+
+    applyInboundWorkflowFormats_(adminSpreadsheet, workerSpreadsheet);
+    applyPickingWorkflowFormats_(workerSpreadsheet);
     Object.values(spreadsheets).forEach((spreadsheet) => applyOperationsSheetUi_(spreadsheet));
     migrateInventoryModel_();
     SpreadsheetApp.flush();
@@ -63,30 +69,23 @@ function setupSystem() {
     Object.values(spreadsheets).forEach((spreadsheet) => removeUnusedDefaultSheets_(spreadsheet));
     runSetupTask_(
       () =>
-        protectSystemSpreadsheet_(mainSpreadsheet, '메인 데이터 수정 금지', [
-          CONFIG.sheets.settings,
-        ]),
+        protectSystemSpreadsheet_(adminSpreadsheet, '관리자 데이터 보호', [CONFIG.sheets.settings]),
       warnings,
-      '메인 데이터 보호',
+      '관리자 데이터 보호',
     );
     runSetupTask_(
-      () => protectSystemSpreadsheet_(dashboardSpreadsheet, '대시보드 조회 전용'),
-      warnings,
-      '대시보드 보호',
-    );
-
-    runSetupTask_(() => ensureTrigger_(), warnings, '입력 스캔 트리거 생성');
-    runSetupTask_(
-      () => ensureOrderEditTrigger_(mainSpreadsheet),
+      () => ensureOrderEditTrigger_(adminSpreadsheet),
       warnings,
       '주문 체크박스 편집 트리거 생성',
     );
+
+    runSetupTask_(() => ensureTrigger_(), warnings, '입력 스캔 트리거 생성');
     runSetupTask_(() => ensurePickingTrigger_(), warnings, '피킹 반영 트리거 생성');
     runSetupTask_(() => ensureConfiguredBackupTrigger_(), warnings, '백업 트리거 생성');
 
     const result = {
       rootFolderUrl: rootFolder.getUrl(),
-      spreadsheetId: mainSpreadsheet.getId(),
+      spreadsheetId: adminSpreadsheet.getId(),
       files: Object.keys(spreadsheets).reduce((result, group) => {
         result[group] = {
           id: spreadsheets[group].getId(),
@@ -99,8 +98,8 @@ function setupSystem() {
       inputFolderUrl: inputFolder.getUrl(),
       successFolderUrl: successFolder.getUrl(),
       errorFolderUrl: errorFolder.getUrl(),
-      spreadsheetUrl: mainSpreadsheet.getUrl(),
-      sheetNames: mainSpreadsheet.getSheets().map((sheet) => sheet.getName()),
+      spreadsheetUrl: adminSpreadsheet.getUrl(),
+      sheetNames: adminSpreadsheet.getSheets().map((sheet) => sheet.getName()),
       warnings,
     };
 
@@ -136,18 +135,29 @@ function getRootFolder_() {
   return DriveApp.getFolderById(rootFolderId);
 }
 
-// 과거 통합 파일은 새 파일들의 초기 데이터 원본으로만 읽고 삭제하지 않는다.
-function getLegacySpreadsheetForMigration_() {
-  const legacyId = PropertiesService.getScriptProperties().getProperty(
+// 과거 통합 파일과 4파일 구조는 2파일 구조의 데이터 원본으로만 읽는다.
+function getLegacySpreadsheetsForMigration_() {
+  const properties = PropertiesService.getScriptProperties();
+  const propertyKeys = [
     CONFIG.properties.spreadsheetId,
-  );
-  if (!legacyId) return null;
-  try {
-    return SpreadsheetApp.openById(legacyId);
-  } catch (error) {
-    console.warn('기존 통합 스프레드시트를 열 수 없어 신규 파일만 생성합니다.');
-    return null;
-  }
+    CONFIG.properties.mainSpreadsheetId,
+    CONFIG.properties.inboundSpreadsheetId,
+    CONFIG.properties.pickingSpreadsheetId,
+    CONFIG.properties.dashboardSpreadsheetId,
+  ];
+  const openedIds = new Set();
+
+  return propertyKeys.reduce((spreadsheets, propertyKey) => {
+    const spreadsheetId = properties.getProperty(propertyKey);
+    if (!spreadsheetId || openedIds.has(spreadsheetId)) return spreadsheets;
+    openedIds.add(spreadsheetId);
+    try {
+      spreadsheets.push(SpreadsheetApp.openById(spreadsheetId));
+    } catch (error) {
+      console.warn(`기존 스프레드시트를 열 수 없습니다: ${propertyKey}`);
+    }
+    return spreadsheets;
+  }, []);
 }
 
 function getOrCreateSystemSpreadsheets_() {
@@ -160,7 +170,7 @@ function getOrCreateSystemSpreadsheets_() {
   });
   PropertiesService.getScriptProperties().setProperty(
     CONFIG.properties.spreadsheetId,
-    spreadsheets.main.getId(),
+    spreadsheets.admin.getId(),
   );
   return spreadsheets;
 }
@@ -207,10 +217,10 @@ function findRootSpreadsheetByName_(spreadsheetName) {
   return null;
 }
 
-function seedSystemSheetsFromLegacy_(spreadsheets, legacySpreadsheet) {
-  if (!legacySpreadsheet) return;
+function seedSystemSheetsFromLegacy_(spreadsheets, legacySpreadsheets) {
+  if (!legacySpreadsheets || legacySpreadsheets.length === 0) return;
   const sheetGroups = {
-    main: [
+    admin: [
       CONFIG.sheets.settings,
       CONFIG.sheets.products,
       CONFIG.sheets.inventoryHistory,
@@ -218,29 +228,34 @@ function seedSystemSheetsFromLegacy_(spreadsheets, legacySpreadsheet) {
       ORDER_CONFIG.sheets.orderItems,
       CONFIG.sheets.errors,
       CONFIG.sheets.history,
+      CONFIG.sheets.completedOrders,
     ],
-    inbound: [
+    worker: [
       CONFIG.sheets.productRegistration,
       CONFIG.sheets.inboundPending,
       CONFIG.sheets.inboundCompleted,
       CONFIG.sheets.inboundErrors,
+      CONFIG.sheets.pickingHeaders,
+      CONFIG.sheets.pickingLines,
     ],
-    picking: [CONFIG.sheets.pickingHeaders, CONFIG.sheets.pickingLines],
-    dashboard: [CONFIG.sheets.completedOrders],
   };
   Object.keys(sheetGroups).forEach((group) => {
-    if (spreadsheets[group].getId() === legacySpreadsheet.getId()) return;
-    sheetGroups[group].forEach((sheetName) =>
-      seedSheetFromLegacy_(spreadsheets[group], legacySpreadsheet, sheetName),
-    );
+    sheetGroups[group].forEach((sheetName) => {
+      legacySpreadsheets.some((legacySpreadsheet) => {
+        if (spreadsheets[group].getId() === legacySpreadsheet.getId()) return false;
+        return seedSheetFromLegacy_(spreadsheets[group], legacySpreadsheet, sheetName);
+      });
+    });
   });
 }
 
 function seedSheetFromLegacy_(targetSpreadsheet, legacySpreadsheet, sheetName) {
   const sourceSheet = legacySpreadsheet.getSheetByName(sheetName);
-  if (!sourceSheet || sourceSheet.getLastRow() === 0 || sourceSheet.getLastColumn() === 0) return;
+  if (!sourceSheet || sourceSheet.getLastRow() === 0 || sourceSheet.getLastColumn() === 0) {
+    return false;
+  }
   let targetSheet = targetSpreadsheet.getSheetByName(sheetName);
-  if (targetSheet && targetSheet.getLastRow() > 1) return;
+  if (targetSheet && targetSheet.getLastRow() > 1) return true;
   if (!targetSheet) targetSheet = targetSpreadsheet.insertSheet(sheetName);
   const values = sourceSheet
     .getRange(1, 1, sourceSheet.getLastRow(), sourceSheet.getLastColumn())
@@ -248,6 +263,7 @@ function seedSheetFromLegacy_(targetSpreadsheet, legacySpreadsheet, sheetName) {
   ensureSheetSize_(targetSheet, values.length, values[0].length);
   targetSheet.clearContents();
   targetSheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+  return true;
 }
 
 function ensureSheetSize_(sheet, rowCount, columnCount) {
@@ -498,6 +514,9 @@ function applyPickingWorkflowFormats_(spreadsheet) {
       .build();
     lineSheet.getRange(2, headerMap['예외사유'], rowCount, 1).setDataValidation(reasonRule);
   }
+  if (typeof applyPickingWorkSheetUi_ === 'function') {
+    applyPickingWorkSheetUi_(headerSheet, lineSheet);
+  }
 }
 
 function applyFormatsByHeader_(sheet, headers, numberFormat) {
@@ -618,7 +637,7 @@ function getSpreadsheetByGroup_(group) {
   const properties = PropertiesService.getScriptProperties();
   const spreadsheetId =
     properties.getProperty(propertyKey) ||
-    (group === 'main' ? properties.getProperty(CONFIG.properties.spreadsheetId) : '');
+    (group === 'admin' ? properties.getProperty(CONFIG.properties.spreadsheetId) : '');
 
   if (!spreadsheetId) {
     throw new Error(`${propertyKey}가 없습니다. setupSystem()을 먼저 실행하세요.`);
@@ -633,9 +652,9 @@ function getSpreadsheetForSheet_(sheetName) {
   return getSpreadsheetByGroup_(group);
 }
 
-// 기존 공통 호출은 수정 금지 메인 데이터 파일을 반환한다.
+// 기존 공통 호출은 관리자용 파일을 반환한다.
 function getSpreadsheet_() {
-  return getSpreadsheetByGroup_('main');
+  return getSpreadsheetByGroup_('admin');
 }
 
 // 상품/주문 공통 스캔 트리거는 기존 전용 트리거까지 정리하고 하나만 생성한다.
@@ -799,7 +818,7 @@ function syncConfiguredTriggers() {
   );
 
   ensureTrigger_();
-  ensureOrderEditTrigger_(getSpreadsheetByGroup_('main'));
+  ensureOrderEditTrigger_(getSpreadsheetByGroup_('admin'));
   ensurePickingTrigger_();
   const backupTrigger = ensureConfiguredBackupTrigger_();
 

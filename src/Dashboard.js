@@ -223,7 +223,7 @@ function refreshCrossCheckDashboard_() {
     pickingHeaders: getSheetRecords_(getSheet_(CONFIG.sheets.pickingHeaders)),
     pickingLines: getSheetRecords_(getSheet_(CONFIG.sheets.pickingLines)),
   });
-  const files = ['main', 'inbound', 'picking', 'dashboard'].map((group) => {
+  const files = ['admin', 'worker'].map((group) => {
     const spreadsheet = getSpreadsheetByGroup_(group);
     return [group, spreadsheet.getName(), spreadsheet.getUrl()];
   });
@@ -304,6 +304,10 @@ function buildCrossCheckModel_(records) {
 }
 
 function renderCrossCheckDashboard_(sheet, model, files) {
+  const metricsHeaderRow = 5 + files.length;
+  const metricsValueRow = metricsHeaderRow + 1;
+  const resultHeaderRow = metricsHeaderRow + 3;
+  const resultStartRow = resultHeaderRow + 1;
   const issueRows =
     model.issues.length > 0
       ? model.issues.map((issue) => [issue.type, issue.source, issue.key, issue.detail])
@@ -339,29 +343,32 @@ function renderCrossCheckDashboard_(sheet, model, files) {
     .setFontSize(18)
     .setFontWeight('bold');
   sheet.getRange('A2:D2').setFontColor(DASHBOARD_THEME.muted);
-  [3, 12].forEach((row) =>
+  [3, resultHeaderRow].forEach((row) =>
     sheet
       .getRange(row, 1, 1, 4)
       .setBackground(DASHBOARD_THEME.blue)
       .setFontColor(DASHBOARD_THEME.white)
       .setFontWeight('bold'),
   );
-  sheet.getRange('A9:D9').setBackground(DASHBOARD_THEME.paleBlue).setFontWeight('bold');
-  sheet.getRange('A10:D10').setFontSize(16).setFontWeight('bold');
+  sheet
+    .getRange(metricsHeaderRow, 1, 1, 4)
+    .setBackground(DASHBOARD_THEME.paleBlue)
+    .setFontWeight('bold');
+  sheet.getRange(metricsValueRow, 1, 1, 4).setFontSize(16).setFontWeight('bold');
   if (model.issues.length > 0) {
-    sheet.getRange(13, 1, model.issues.length, 4).setBackground(DASHBOARD_THEME.paleRed);
+    sheet
+      .getRange(resultStartRow, 1, model.issues.length, 4)
+      .setBackground(DASHBOARD_THEME.paleRed);
   } else {
-    sheet.getRange(13, 1, 1, 4).setBackground(DASHBOARD_THEME.paleGreen);
+    sheet.getRange(resultStartRow, 1, 1, 4).setBackground(DASHBOARD_THEME.paleGreen);
   }
   [145, 260, 170, 420].forEach((width, index) => sheet.setColumnWidth(index + 1, width));
 }
 
 function crossCheckGroupRole_(group) {
   return {
-    main: '시스템 원본·수정 금지',
-    inbound: '상품 등록·입고 작업',
-    picking: '피킹 담당자 작업',
-    dashboard: '조회·교차검증',
+    admin: '원본·설정·대시보드',
+    worker: '상품 등록·입고·피킹 작업',
   }[group];
 }
 
