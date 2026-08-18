@@ -51,9 +51,9 @@ function appendErrorLog_(file, stage, error) {
   ]);
 }
 
-// 처리 완료한 입력 파일은 시트에 기록을 남긴 뒤 휴지통으로 보낸다.
-function trashFile_(file) {
-  file.setTrashed(true);
+// 처리 완료한 입력 파일은 공통 success 폴더로 옮겨 원본을 보관한다.
+function moveFileToSuccessFolder_(file) {
+  moveFileToFolder_(file, getConfiguredFolder_(CONFIG.properties.successFolderId));
 }
 
 // 처리 실패한 입력 파일은 공통 error 폴더로 옮겨 재확인할 수 있게 보관한다.
@@ -75,9 +75,9 @@ function moveFileToFolder_(file, targetFolder) {
   }
 }
 
-// 저장된 운영 스프레드시트 ID 기준으로 시트를 가져오는 공통 함수다.
+// 시트 역할에 따라 메인·작업·대시보드 파일을 찾아 교차 접근한다.
 function getSheet_(sheetName) {
-  const sheet = getSpreadsheet_().getSheetByName(sheetName);
+  const sheet = getSpreadsheetForSheet_(sheetName).getSheetByName(sheetName);
 
   if (!sheet) {
     throw new Error(`시트가 없습니다: ${sheetName}`);

@@ -5,19 +5,16 @@
 ## 폴더/파일 이동
 
 - `src/Setup.js`
-- `src/Setup.js`
-- `src/Order_DriveService.js`
 - `src/HistoryAndError.js`
 
 역할:
 
 - 입력 폴더 찾기 또는 생성
-- 처리완료/오류 폴더 찾기 또는 생성
+- `success`/`error` 폴더 찾기 또는 생성
 - 처리 후 파일 이동
 
 ## 시트 접근
 
-- `src/Setup.js`
 - `src/Setup.js`
 - `src/HistoryAndError.js`
 - `src/Order_SheetRepository.js`

@@ -56,23 +56,24 @@ function createPickingInstruction() {
     const lineRows = [];
     const acceptedOrders = [];
     const skippedOrders = [];
+    const plannedAvailableStock = {};
 
     eligibleOrders.forEach((orderItem) => {
       const orderNumber = normalizeWorkflowText_(orderItem.record['주문번호']);
       const orderLines = itemGroups[orderNumber] || [];
-      const missingCodes = orderLines
-        .map((line) => normalizeWorkflowText_(line.record['상품품목코드']))
-        .filter((code) => !productMap[code]);
-      if (missingCodes.length > 0) {
+      const stockPlan = buildPickingStockPlan_(orderLines, productMap, plannedAvailableStock);
+      if (!stockPlan.eligible) {
         skippedOrders.push({
           orderNumber,
-          reason: `상품마스터 미등록: ${[...new Set(missingCodes)].join(', ')}`,
+          reason: stockPlan.reason,
         });
         return;
       }
 
       const slot = acceptedOrders.length + 1;
       const assignee = selectPickingAssignee_(assignees, slot, assignmentUnit);
+      const recipient = normalizeWorkflowText_(orderItem.record['수령인']);
+      const orderGroup = `🛒 ${String(slot).padStart(2, '0')} · ${recipient || '수령인 미입력'} · ${orderNumber}`;
       const sortedLines = orderLines.slice().sort((left, right) => {
         const leftProduct = productMap[normalizeWorkflowText_(left.record['상품품목코드'])].record;
         const rightProduct =
@@ -88,8 +89,9 @@ function createPickingInstruction() {
 
       headerRows.push([
         instructionId,
-        orderNumber,
         slot,
+        orderNumber,
+        recipient,
         sortedLines.length,
         totalQuantity,
         assignee,
@@ -98,19 +100,30 @@ function createPickingInstruction() {
         '',
         '',
       ]);
+      const remainingStock = Object.keys(stockPlan.stockByProduct).reduce((result, code) => {
+        result[code] = stockPlan.stockByProduct[code].availableStock;
+        return result;
+      }, {});
       sortedLines.forEach((line, index) => {
         const productCode = normalizeWorkflowText_(line.record['상품품목코드']);
         const product = productMap[productCode].record;
+        const requiredQuantity = Number(line.record['수량'] || 0);
+        const currentStock = remainingStock[productCode];
+        const afterShipmentStock = currentStock - requiredQuantity;
+        remainingStock[productCode] = afterShipmentStock;
         lineRows.push([
+          orderGroup,
           index + 1,
           normalizeWorkflowText_(product['로케이션']),
           productCode,
-          normalizeWorkflowText_(product['이미지']),
+          buildPickingImageValue_(product['이미지']),
           normalizeWorkflowText_(product['상품명']) ||
             normalizeWorkflowText_(line.record['주문상품명']),
           normalizeWorkflowText_(product['옵션']) ||
             normalizeWorkflowText_(line.record['상품옵션']),
-          Number(line.record['수량'] || 0),
+          requiredQuantity,
+          currentStock,
+          afterShipmentStock,
           '',
           '',
           '',
@@ -120,6 +133,9 @@ function createPickingInstruction() {
           PICKING_STATUS.lineWaiting,
           '',
         ]);
+      });
+      Object.keys(remainingStock).forEach((productCode) => {
+        plannedAvailableStock[productCode] = remainingStock[productCode];
       });
       acceptedOrders.push({ rowNumber: orderItem.rowNumber, orderNumber, assignee });
     });
@@ -148,13 +164,14 @@ function createPickingInstruction() {
           order.assignee,
         );
       });
+      applyPickingWorkSheetUi_(headerSheet, lineSheet);
     } catch (error) {
       if (lineWrite.rowCount) lineSheet.deleteRows(lineWrite.startRow, lineWrite.rowCount);
       if (headerWrite.rowCount) headerSheet.deleteRows(headerWrite.startRow, headerWrite.rowCount);
       throw error;
     }
 
-    refreshPickingDashboard_();
+    refreshOperationsDashboardsSafely_();
     return {
       instructionId,
       orderCount: acceptedOrders.length,
@@ -163,6 +180,167 @@ function createPickingInstruction() {
     };
   } finally {
     lock.releaseLock();
+  }
+}
+
+// 피킹 지시 직전에 주문 전체를 묶어 실물 재고로 출고 가능한지 다시 확인한다.
+function buildPickingStockPlan_(orderLines, productMap, stockBudget) {
+  const requestedByProduct = {};
+
+  for (let index = 0; index < orderLines.length; index += 1) {
+    const record = orderLines[index].record || {};
+    const productCode = normalizeWorkflowText_(record['상품품목코드']);
+    const quantity = Number(record['수량'] || 0);
+    if (!productCode || !productMap[productCode]) {
+      return {
+        eligible: false,
+        reason: `상품마스터 미등록: ${productCode || '상품코드 없음'}`,
+        stockByProduct: {},
+      };
+    }
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return {
+        eligible: false,
+        reason: `잘못된 피킹 수량: ${productCode}`,
+        stockByProduct: {},
+      };
+    }
+    requestedByProduct[productCode] = (requestedByProduct[productCode] || 0) + quantity;
+  }
+
+  const stockByProduct = {};
+  const productCodes = Object.keys(requestedByProduct);
+  for (let index = 0; index < productCodes.length; index += 1) {
+    const productCode = productCodes[index];
+    const product = productMap[productCode].record;
+    const physicalStock = Number(getRecordValueByAliases_(product, '가용재고') || 0);
+    const availableStock =
+      stockBudget && Object.prototype.hasOwnProperty.call(stockBudget, productCode)
+        ? Number(stockBudget[productCode])
+        : physicalStock;
+    const requestedQuantity = requestedByProduct[productCode];
+    if (!Number.isFinite(availableStock) || availableStock < requestedQuantity) {
+      return {
+        eligible: false,
+        reason: `재고 부족: ${productCode} 필요 ${requestedQuantity} / 현재 ${Number.isFinite(availableStock) ? availableStock : 0}`,
+        stockByProduct: {},
+      };
+    }
+    stockByProduct[productCode] = { availableStock, requestedQuantity };
+  }
+
+  return { eligible: true, reason: '', stockByProduct };
+}
+
+function buildPickingImageValue_(value) {
+  const imageUrl = normalizeWorkflowText_(value);
+  if (!/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return `=IMAGE("${imageUrl.replace(/"/g, '""')}",4,52,52)`;
+}
+
+// 같은 주문은 같은 색 블록으로 묶고, 작업에 필요한 열만 앞에 보이게 한다.
+function applyPickingWorkSheetUi_(headerSheet, lineSheet) {
+  if (headerSheet) {
+    headerSheet.setHiddenGridlines(true).setFrozenRows(1);
+    const headerLastRow = headerSheet.getLastRow();
+    const headerLastColumn = headerSheet.getLastColumn();
+    if (headerLastRow > 1) {
+      headerSheet
+        .getRange(2, 1, headerLastRow - 1, headerLastColumn)
+        .setFontFamily('Arial')
+        .setVerticalAlignment('middle')
+        .setBorder(true, true, true, true, true, true, '#D7E0EA', SpreadsheetApp.BorderStyle.SOLID);
+      headerSheet.setRowHeights(2, headerLastRow - 1, 34);
+    }
+  }
+  if (!lineSheet) return;
+
+  lineSheet.setHiddenGridlines(true).setFrozenRows(1).setFrozenColumns(3);
+  const lastRow = lineSheet.getLastRow();
+  const lastColumn = lineSheet.getLastColumn();
+  const headerMap = getHeaderIndexMap_(lineSheet);
+  if (lastRow > 1) {
+    const dataRange = lineSheet.getRange(2, 1, lastRow - 1, lastColumn);
+    dataRange
+      .setBackground('#FFFFFF')
+      .setFontFamily('Arial')
+      .setVerticalAlignment('middle')
+      .setWrap(true)
+      .setBorder(true, true, true, true, true, true, '#D7E0EA', SpreadsheetApp.BorderStyle.SOLID);
+    const orderNumbers = lineSheet
+      .getRange(2, headerMap['주문번호'], lastRow - 1, 1)
+      .getDisplayValues()
+      .flat();
+    let previousOrder = '';
+    let groupIndex = -1;
+    orderNumbers.forEach((orderNumber, index) => {
+      const rowNumber = index + 2;
+      if (orderNumber !== previousOrder) {
+        groupIndex += 1;
+        lineSheet
+          .getRange(rowNumber, 1, 1, lastColumn)
+          .setBorder(
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            '#64748B',
+            SpreadsheetApp.BorderStyle.SOLID_MEDIUM,
+          );
+        previousOrder = orderNumber;
+      }
+      lineSheet
+        .getRange(rowNumber, 1, 1, lastColumn)
+        .setBackground(groupIndex % 2 === 0 ? '#F8FBFF' : '#F7FAF8');
+    });
+    lineSheet
+      .getRange(2, 1, lastRow - 1, 1)
+      .setFontWeight('bold')
+      .setFontColor('#1E3A5F');
+    ['필요수량', '현재재고', '출고후재고'].forEach((header) => {
+      if (headerMap[header]) {
+        lineSheet
+          .getRange(2, headerMap[header], lastRow - 1, 1)
+          .setHorizontalAlignment('center')
+          .setNumberFormat('#,##0');
+      }
+    });
+    if (headerMap['확인']) {
+      lineSheet
+        .getRange(2, headerMap['확인'], lastRow - 1, 1)
+        .setBackground('#FFF4CC')
+        .setFontWeight('bold')
+        .setHorizontalAlignment('center');
+    }
+    lineSheet.setRowHeights(2, lastRow - 1, 58);
+  }
+
+  const widths = {
+    주문묶음: 270,
+    순번: 55,
+    보관위치: 105,
+    상품코드: 130,
+    이미지: 70,
+    상품명: 250,
+    옵션: 130,
+    필요수량: 85,
+    현재재고: 85,
+    출고후재고: 95,
+    확인: 70,
+    실제수량: 85,
+    예외사유: 130,
+  };
+  Object.keys(widths).forEach((header) => {
+    if (headerMap[header]) lineSheet.setColumnWidth(headerMap[header], widths[header]);
+  });
+  lineSheet.showColumns(1, lastColumn);
+  if (headerMap['품목별 주문번호']) {
+    lineSheet.hideColumns(
+      headerMap['품목별 주문번호'],
+      lastColumn - headerMap['품목별 주문번호'] + 1,
+    );
   }
 }
 
@@ -253,7 +431,7 @@ function syncPickingResults() {
       completedOrders += 1;
     });
 
-    refreshPickingDashboard_();
+    refreshOperationsDashboardsSafely_();
     return { completedOrders, canceledOrders, processedLines, skipped: false };
   } finally {
     lock.releaseLock();
@@ -440,16 +618,6 @@ function classifyPickingCancellationRecovery_(current, recovery) {
   return 'ambiguous';
 }
 
-function refreshPickingDashboard() {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    return refreshPickingDashboard_();
-  } finally {
-    lock.releaseLock();
-  }
-}
-
 function refreshPickingDashboard_() {
   const sheet = getSheet_(CONFIG.sheets.pickingDashboard);
   const headers = getSheetRecords_(getSheet_(CONFIG.sheets.pickingHeaders));
@@ -474,56 +642,76 @@ function refreshPickingDashboard_() {
     : 0;
   const productRecords = getSheetRecords_(getSheet_(CONFIG.sheets.products));
   const lowStocks = productRecords.filter((record) => {
-    const remaining = Number(record['출고후잔량'] || 0);
+    const remaining = Number(record['가용재고'] || 0) - Number(record['발송대기'] || 0);
     const safety = Number(record['안전재고'] || 0);
     return remaining <= (safety > 0 ? safety : 3);
   });
 
-  sheet.clearContents();
-  const rows = [
-    ['📦 피킹 운영 대시보드'],
-    [
-      `갱신 ${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MM-dd HH:mm')} · 현재 지시 ${latestInstruction || '없음'}`,
-    ],
-    [],
-    [
-      '대기',
-      statusCounts[PICKING_STATUS.waiting],
-      '진행',
-      statusCounts[PICKING_STATUS.inProgress],
-      '완료',
-      statusCounts[PICKING_STATUS.completed],
-      '예외',
-      statusCounts[PICKING_STATUS.exception],
-    ],
-    ['전체 진행률', `${progress}% (${processedCount}/${currentLines.length} 품목)`],
-    [],
-    ['슬롯', '주문번호', '담당자', '품목수', '총수량', '상태', '비고'],
-    ...currentHeaders.map((record) => [
+  const slotRows = currentHeaders.map((record) => {
+    const orderNumber = normalizeWorkflowText_(record['주문번호']);
+    const orderLines = currentLines.filter(
+      (line) => normalizeWorkflowText_(line['주문번호']) === orderNumber,
+    );
+    const completedLines = orderLines.filter((line) =>
+      [PICKING_STATUS.deducted, PICKING_STATUS.restored, PICKING_STATUS.canceled].includes(
+        normalizeWorkflowText_(line['라인상태']),
+      ),
+    ).length;
+    const orderProgress = orderLines.length
+      ? Math.round((completedLines / orderLines.length) * 100)
+      : 0;
+    return [
       record['카트슬롯'],
-      record['주문번호'],
+      orderNumber,
       record['피킹담당자'],
       record['품목수'],
       record['총수량'],
+      `${buildDashboardProgressBar_(orderProgress, 8)} ${orderProgress}%`,
       record['상태'],
       record['예외사유'],
-    ]),
+    ];
+  });
+  resetDashboardSheet_(sheet);
+  const rows = [
+    ['📦  피킹 현황'],
+    [`${dashboardUpdatedText_()}     ·     현재 지시  ${latestInstruction || '없음'}`],
+    ['대기', '', '진행 중', '', '완료', '', '취소', ''],
+    [
+      statusCounts[PICKING_STATUS.waiting],
+      '',
+      statusCounts[PICKING_STATUS.inProgress],
+      '',
+      statusCounts[PICKING_STATUS.completed],
+      '',
+      statusCounts[PICKING_STATUS.exception],
+      '',
+    ],
+    [
+      '전체 진행률',
+      `${buildDashboardProgressBar_(progress, 20)}   ${progress}%   (${processedCount} / ${currentLines.length} 품목)`,
+    ],
+    [],
+    ['슬롯별 현황'],
+    ['슬롯', '주문번호', '담당자', '품목', '수량', '진행', '상태', '비고'],
+    ...slotRows,
     [],
     ['⚠ 안전재고 확인'],
-    ['상품코드', '상품명', '옵션', '로케이션', '출고후잔량', '안전재고'],
+    ['상품코드', '상품명', '옵션', '위치', '가용', '예약', '출고후잔량', '안전재고'],
     ...lowStocks.map((record) => [
       record['상품품목코드'],
       record['상품명'],
       record['옵션'],
       record['로케이션'],
-      record['출고후잔량'],
+      record['가용재고'],
+      record['발송대기'],
+      Number(record['가용재고'] || 0) - Number(record['발송대기'] || 0),
       record['안전재고'],
     ]),
   ];
   const width = Math.max(...rows.map((row) => row.length), 1);
   const normalizedRows = rows.map((row) => [...row, ...Array(width - row.length).fill('')]);
   sheet.getRange(1, 1, normalizedRows.length, width).setValues(normalizedRows);
-  sheet.setFrozenRows(2);
+  stylePickingDashboard_(sheet, normalizedRows.length, 11 + slotRows.length);
   return { instructionId: latestInstruction, progress, lowStockCount: lowStocks.length };
 }
 

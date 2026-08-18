@@ -104,7 +104,12 @@ function validateHeaders_(headers) {
     throw appError_('MISSING_HEADER', `필수 헤더 누락: ${missing.join(', ')}`, 'HEADER_VALIDATION');
   }
 
-  const unknown = headers.filter((header) => header && !PRODUCT_HEADERS.includes(header));
+  const unknown = headers.filter(
+    (header) =>
+      header &&
+      !PRODUCT_HEADERS.includes(header) &&
+      !PRODUCT_IGNORED_IMPORT_HEADERS.includes(header),
+  );
   if (unknown.length > 0) {
     throw appError_(
       'UNKNOWN_HEADER',
@@ -128,9 +133,10 @@ function mapRowsToObjects_(headers, rows) {
 }
 
 // 상품 행은 필수값, 파일 내부 중복, 숫자 형식, 날짜 형식을 모두 확인한다.
-function validateProductRows_(rows) {
+function validateProductRows_(rows, options) {
   const errors = [];
   const seenCodes = new Set();
+  const inventoryMode = (options && options.inventoryMode) || 'additive';
 
   rows.forEach((row) => {
     const rowNumber = row.__rowNumber;
@@ -166,18 +172,22 @@ function validateProductRows_(rows) {
     NUMERIC_HEADERS.forEach((header) => {
       const value = row[header];
 
-      if (value === '') {
+      if (value === '' || value === null || value === undefined) {
         return;
       }
 
-      const number = Number(value.replace(/,/g, ''));
+      const number = Number(String(value).replace(/,/g, ''));
 
-      if (!Number.isFinite(number) || number < 0) {
+      const allowsNegativeStock = inventoryMode === 'snapshot' && header === '가용재고';
+
+      if (!Number.isFinite(number) || (!allowsNegativeStock && number < 0)) {
         errors.push({
           rowNumber,
           productCode,
           code: 'INVALID_NUMBER',
-          message: `${header}은 0 이상의 숫자여야 합니다: ${value}`,
+          message: allowsNegativeStock
+            ? `${header}은 숫자여야 합니다: ${value}`
+            : `${header}은 0 이상의 숫자여야 합니다: ${value}`,
         });
       }
     });

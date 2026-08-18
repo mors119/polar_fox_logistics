@@ -2,6 +2,7 @@
 const CONFIG = Object.freeze({
   folders: {
     input: 'input',
+    success: 'success',
     error: 'error',
   },
   sheets: {
@@ -13,7 +14,11 @@ const CONFIG = Object.freeze({
     inboundErrors: '오류작업',
     pickingHeaders: '피킹헤더',
     pickingLines: '피킹라인',
-    pickingDashboard: '피킹대시보드',
+    inventoryDashboard: '📊 재고현황',
+    orderDashboard: '📊 주문현황',
+    pickingDashboard: '📊 피킹현황',
+    crossCheckDashboard: '🔗 교차검증',
+    completedOrders: '주문(완료)',
     inventoryHistory: '재고이력',
     errors: '오류목록',
     history: '파일처리이력',
@@ -35,16 +40,53 @@ const CONFIG = Object.freeze({
   properties: {
     rootFolderId: 'ROOT_FOLDER_ID',
     spreadsheetId: 'OPERATIONS_SPREADSHEET_ID',
+    adminSpreadsheetId: 'ADMIN_SPREADSHEET_ID',
+    workerSpreadsheetId: 'WORKER_SPREADSHEET_ID',
+    // 아래 4개 키는 기존 운영 파일의 데이터를 2파일 구조로 옮길 때만 사용한다.
+    mainSpreadsheetId: 'MAIN_SPREADSHEET_ID',
+    inboundSpreadsheetId: 'INBOUND_SPREADSHEET_ID',
+    pickingSpreadsheetId: 'PICKING_SPREADSHEET_ID',
+    dashboardSpreadsheetId: 'DASHBOARD_SPREADSHEET_ID',
     inputFolderId: 'INPUT_FOLDER_ID',
+    successFolderId: 'SUCCESS_FOLDER_ID',
     errorFolderId: 'ERROR_FOLDER_ID',
     inventoryModelVersion: 'INVENTORY_MODEL_VERSION',
   },
   backupExportMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  spreadsheetName: 'polar_fox_logistics',
+  spreadsheetFiles: {
+    admin: '01_관리자용',
+    worker: '02_업무인원용',
+  },
   triggerHandler: 'scanInputFolder',
   backupTriggerHandler: 'sendConfiguredBackupEmail',
   pickingTriggerHandler: 'syncPickingResults',
   triggerMinutes: 5,
+});
+
+const SPREADSHEET_GROUP_PROPERTIES = Object.freeze({
+  admin: CONFIG.properties.adminSpreadsheetId,
+  worker: CONFIG.properties.workerSpreadsheetId,
+});
+
+const SHEET_SPREADSHEET_GROUPS = Object.freeze({
+  [CONFIG.sheets.settings]: 'admin',
+  [CONFIG.sheets.products]: 'admin',
+  [CONFIG.sheets.inventoryHistory]: 'admin',
+  [CONFIG.sheets.errors]: 'admin',
+  [CONFIG.sheets.history]: 'admin',
+  [CONFIG.sheets.completedOrders]: 'admin',
+  주문: 'admin',
+  주문상품: 'admin',
+  [CONFIG.sheets.productRegistration]: 'worker',
+  [CONFIG.sheets.inboundPending]: 'worker',
+  [CONFIG.sheets.inboundCompleted]: 'worker',
+  [CONFIG.sheets.inboundErrors]: 'worker',
+  [CONFIG.sheets.pickingHeaders]: 'worker',
+  [CONFIG.sheets.pickingLines]: 'worker',
+  [CONFIG.sheets.inventoryDashboard]: 'admin',
+  [CONFIG.sheets.orderDashboard]: 'admin',
+  [CONFIG.sheets.pickingDashboard]: 'admin',
+  [CONFIG.sheets.crossCheckDashboard]: 'admin',
 });
 
 // 상품 CSV에서 허용하는 전체 헤더 목록이다.
@@ -75,6 +117,44 @@ const PRODUCT_HEADERS = Object.freeze([
   '박스수량',
 ]);
 
+// 최신 운영 파일과 카페24 내보내기 헤더를 내부 표준 헤더로 바꾼다.
+const PRODUCT_IMPORT_HEADER_ALIASES = Object.freeze({
+  내부SKU: '코드',
+  재고코드: '바코드',
+  관리코드: '관리명',
+  옵션명: '옵션',
+  상품구분: '유형',
+  기본보관위치: '로케이션',
+  예약재고: '발송대기',
+  상품상태: '상품진행여부',
+  품목코드: '상품품목코드',
+  품목명: '옵션',
+  재고수량: '가용재고',
+});
+
+const PRODUCT_IGNORED_IMPORT_HEADERS = Object.freeze([
+  '상품코드',
+  '자체 상품코드',
+  '판매가',
+  '총 재고량',
+  '자체 품목코드',
+  '재고관리 사용',
+  '등록일',
+  '승인자',
+]);
+
+const CAFE24_INVENTORY_REQUIRED_HEADERS = Object.freeze([
+  '상품코드',
+  '상품명',
+  '품목코드',
+  '재고수량',
+]);
+
+function isCafe24InventoryHeaders_(headers) {
+  const normalizedHeaders = (headers || []).map(normalizeHeader_);
+  return CAFE24_INVENTORY_REQUIRED_HEADERS.every((header) => normalizedHeaders.includes(header));
+}
+
 // 최소한 반드시 들어와야 하는 헤더만 따로 분리한다.
 const REQUIRED_HEADERS = Object.freeze(['상품품목코드', '상품명']);
 
@@ -89,12 +169,36 @@ const NUMERIC_HEADERS = Object.freeze([
   '박스수량',
 ]);
 
-// 실제 상품마스터 시트에는 원본 파일 추적용 컬럼을 뒤에 덧붙여 저장한다.
+// 상품마스터 앞쪽은 최신 운영 파일 형식을 따르고, 자동화용 컬럼은 뒤에 보존한다.
 const PRODUCT_SHEET_HEADERS = Object.freeze([
-  ...PRODUCT_HEADERS,
+  '상품품목코드',
+  '내부SKU',
+  '재고코드',
+  '관리코드',
+  '상품명',
+  '옵션명',
+  '상품구분',
+  '이미지',
+  '기본보관위치',
+  '가용재고',
+  '예약재고',
+  '불량재고',
+  '상품상태',
+  '등록일',
+  '승인자',
+  '고객사명',
+  '형태',
+  '보관장소',
+  '유효기간',
+  '안전재고',
+  '적정재고',
+  '입출고',
+  '차트',
+  '박스내용',
+  '박스수량',
+  '출고후잔량',
   '원본파일ID',
   '원본파일명',
-  '등록일시',
   '재고상태',
 ]);
 
@@ -182,25 +286,29 @@ const INBOUND_WORK_HEADERS = Object.freeze([
 
 const PICKING_HEADER_HEADERS = Object.freeze([
   '피킹지시번호',
+  '카트 슬롯',
   '주문번호',
-  '카트슬롯',
+  '수령인',
   '품목수',
   '총수량',
   '피킹담당자',
-  '상태',
+  '상태(대기/진행/완료/예외)',
   '생성일시',
   '완료일시',
   '예외사유',
 ]);
 
 const PICKING_LINE_HEADERS = Object.freeze([
+  '주문묶음',
   '순번',
   '보관위치',
-  '상품품목코드',
+  '상품코드',
   '이미지',
   '상품명',
   '옵션',
   '필요수량',
+  '현재재고',
+  '출고후재고',
   '확인',
   '실제수량',
   '예외사유',
@@ -210,6 +318,34 @@ const PICKING_LINE_HEADERS = Object.freeze([
   '라인상태',
   '처리일시',
 ]);
+
+// 시트 표시명은 최신 형식을 사용하되 기존 코드와 과거 시트명도 계속 읽을 수 있게 한다.
+const SHEET_HEADER_ALIAS_GROUPS = Object.freeze([
+  Object.freeze(['상품품목코드', '상품코드', '품목코드']),
+  Object.freeze(['코드', '내부SKU']),
+  Object.freeze(['바코드', '재고코드']),
+  Object.freeze(['관리명', '관리코드']),
+  Object.freeze(['옵션', '옵션명']),
+  Object.freeze(['유형', '상품구분']),
+  Object.freeze(['로케이션', '기본보관위치', '보관위치']),
+  Object.freeze(['발송대기', '예약재고']),
+  Object.freeze(['상품진행여부', '상품상태']),
+  Object.freeze(['카트슬롯', '카트 슬롯']),
+  Object.freeze(['상태', '상태(대기/진행/완료/예외)']),
+  Object.freeze(['쇼핑몰 번호', '쇼핑몰번호']),
+  Object.freeze(['배송메세지', '배송메시지']),
+  Object.freeze(['총주문금액', '총 주문금액(KRW)']),
+  Object.freeze(['결제금액', '총 결제금액(KRW)']),
+  Object.freeze(['주문상품명', '주문상품명(기본)']),
+  Object.freeze(['상품옵션', '상품옵션(기본)']),
+  Object.freeze(['수령인 주소', '수령인 주소(전체)']),
+  Object.freeze(['등록일시', '등록일']),
+]);
+
+function normalizeProductImportHeader_(value) {
+  const header = normalizeHeader_(value);
+  return PRODUCT_IMPORT_HEADER_ALIASES[header] || header;
+}
 
 // 설정 시트에서 사용자 입력을 받을 기본 행이다.
 const SETTINGS_SHEET_ROWS = Object.freeze([

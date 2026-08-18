@@ -32,6 +32,7 @@ function handleOrderItemCheckboxEdit(e) {
 
     try {
       syncOrderItemCheckboxState_(sheet, e.range.getRow(), newValue === 'TRUE');
+      refreshOperationsDashboardsSafely_();
     } catch (error) {
       e.range.setValue(oldValue === 'TRUE');
       throw error;

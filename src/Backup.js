@@ -14,9 +14,8 @@ function sendConfiguredBackupEmail() {
     throw new Error('설정 시트에 백업 대상 시트를 입력하세요.');
   }
 
-  const spreadsheet = getSpreadsheet_();
-  const sheets = getBackupSheets_(spreadsheet, requestedSheetNames);
-  const backupFile = createBackupSpreadsheetFile_(spreadsheet, sheets);
+  const sheets = getBackupSheets_(requestedSheetNames);
+  const backupFile = createBackupSpreadsheetFile_(sheets);
   const timestamp = Utilities.formatDate(
     new Date(),
     Session.getScriptTimeZone(),
@@ -88,16 +87,14 @@ function parseBackupSheetNames_(value) {
   ];
 }
 
-// 설정값으로 지정된 시트명이 실제 운영 스프레드시트에 모두 존재하는지 확인한다.
-function getBackupSheets_(spreadsheet, requestedSheetNames) {
+// 분리된 여러 운영 파일에서 설정값으로 선택한 시트를 모은다.
+function getBackupSheets_(requestedSheetNames) {
   const sheets = requestedSheetNames.map((sheetName) => {
-    const sheet = spreadsheet.getSheetByName(sheetName);
-
-    if (!sheet) {
+    try {
+      return getSheet_(sheetName);
+    } catch (error) {
       throw new Error(`백업 대상 시트를 찾을 수 없습니다: ${sheetName}`);
     }
-
-    return sheet;
   });
 
   if (sheets.length === 0) {
@@ -108,15 +105,13 @@ function getBackupSheets_(spreadsheet, requestedSheetNames) {
 }
 
 // 선택된 시트만 포함한 임시 스프레드시트를 만든 뒤 메일 첨부용 파일로 반환한다.
-function createBackupSpreadsheetFile_(sourceSpreadsheet, sheets) {
+function createBackupSpreadsheetFile_(sheets) {
   const timestamp = Utilities.formatDate(
     new Date(),
     Session.getScriptTimeZone(),
     'yyyyMMdd_HHmmss',
   );
-  const tempSpreadsheet = SpreadsheetApp.create(
-    `${sourceSpreadsheet.getName()}_backup_${timestamp}`,
-  );
+  const tempSpreadsheet = SpreadsheetApp.create(`polar_fox_logistics_backup_${timestamp}`);
   const tempFile = DriveApp.getFileById(tempSpreadsheet.getId());
   const defaultSheet = tempSpreadsheet.getSheets()[0];
 
