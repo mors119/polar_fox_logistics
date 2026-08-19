@@ -1,5 +1,34 @@
 # 아키텍처
 
+## 코드 읽는 순서
+
+전체 파일을 처음부터 읽기보다 아래 순서로 보면 업무 흐름을 빠르게 파악할 수 있습니다.
+
+1. `Config.js`, `Order_Config.js`: 폴더·시트·헤더·상태값
+2. `Main.js`: 공통 입력 폴더 스캔과 상품/주문 분기
+3. `Order_Main.js`: 주문 파일 한 건의 전체 처리 순서
+4. `InboundWorkflow.js`, `PickingWorkflow.js`: 입고와 출고 업무 흐름
+5. `InventoryService.js`: 재고 계산과 이력
+6. `Setup.js`: 최초 설치, 시트 구성, 트리거
+7. `Dashboard.js`: 운영 화면 렌더링과 스타일
+
+외부에서 직접 실행하는 함수에는 밑줄이 없고, 내부 구현 함수는 이름 끝에 `_`를 붙입니다. 예를 들어 `createPickingInstruction()`은 메뉴·트리거에서 실행할 수 있고 `buildPickingStockPlan_()`은 내부 계산 전용입니다.
+
+## 기능별 수정 위치
+
+| 변경하려는 내용          | 먼저 볼 파일          | 함께 확인할 파일                                   |
+| ------------------------ | --------------------- | -------------------------------------------------- |
+| 입력 파일 종류·헤더 판별 | `Main.js`             | `CsvValidation.js`, `Order_CsvParser.js`           |
+| 상품 데이터 검증·적재    | `CsvValidation.js`    | `Productimport.js`, `Config.js`                    |
+| 주문 검증·적재           | `Order_Validator.js`  | `Order_SheetRepository.js`, `Order_Main.js`        |
+| 재고 계산·이력           | `InventoryService.js` | `Order_SheetRepository.js`, `Order_EditService.js` |
+| 상품등록·입고            | `InboundWorkflow.js`  | `Config.js`, `Setup.js`                            |
+| 피킹·취소·출고           | `PickingWorkflow.js`  | `Order_EditService.js`, `Order_Config.js`          |
+| 시트·폴더·트리거         | `Setup.js`            | `Config.js`                                        |
+| 대시보드 표시            | `Dashboard.js`        | `PickingWorkflow.js`                               |
+
+업무 규칙을 바꿀 때는 같은 이름의 `scripts/*.test.mjs` 테스트를 함께 확인합니다. Apps Script API 호출은 테스트하기 어려우므로 계산·판별 로직은 가능한 한 부작용 없는 작은 내부 함수로 유지합니다.
+
 ## 구조 요약
 
 이 프로젝트는 계층형 프레임워크가 아니라, Google Apps Script 전역 함수 파일을 역할별로 분리한 구조입니다.
@@ -25,7 +54,7 @@
 
 - `src/Setup.js`: 폴더, 시트, 트리거 준비
 - `src/Main.js`: 파일 순회와 메인 제어
-- `src/CsvVaildation.js`: CSV 파싱, 헤더 검사, 행 검사
+- `src/CsvValidation.js`: CSV 파싱, 헤더 검사, 행 검사
 - `src/Productimport.js`: 상품마스터 시트 중복 검사와 적재
 - `src/InventoryService.js`: 재고 지표 계산과 변동 이력 기록
 - `src/InboundWorkflow.js`: 상품 승인, 입고 검수·확정, 멱등적 중단 복구

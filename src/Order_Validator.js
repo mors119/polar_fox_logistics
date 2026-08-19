@@ -49,71 +49,21 @@ function validateOrderRows(rows) {
     const recipient = getTrimmedField_(row, '수령인');
     const recipientAddress = getTrimmedField_(row, '수령인 주소');
 
-    if (!orderNumber) {
-      errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'REQUIRED_VALUE',
-          '주문번호는 필수입니다.',
-        ),
-      );
-    }
-
-    if (!orderItemNumber) {
-      errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'REQUIRED_VALUE',
-          '품목별 주문번호는 필수입니다.',
-        ),
-      );
-    }
-
-    if (!productItemCode) {
-      errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'REQUIRED_VALUE',
-          '상품품목코드는 필수입니다.',
-        ),
-      );
-    }
-
-    if (!orderItemName) {
-      errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'REQUIRED_VALUE',
-          '주문상품명은 필수입니다.',
-        ),
-      );
-    }
+    const rowIdentity = { rowNumber, orderNumber, orderItemNumber };
+    addRequiredOrderFieldError_(errors, rowIdentity, '주문번호', orderNumber);
+    addRequiredOrderFieldError_(errors, rowIdentity, '품목별 주문번호', orderItemNumber);
+    addRequiredOrderFieldError_(errors, rowIdentity, '상품품목코드', productItemCode);
+    addRequiredOrderFieldError_(errors, rowIdentity, '주문상품명', orderItemName);
 
     const quantityNumber = parseIntegerField_(quantityText);
     if (!quantityText) {
       errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'REQUIRED_VALUE',
-          '수량은 필수입니다.',
-        ),
+        buildOrderRowErrorFromIdentity_(rowIdentity, 'REQUIRED_VALUE', '수량은 필수입니다.'),
       );
     } else if (quantityNumber === null || quantityNumber < 1) {
       errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
+        buildOrderRowErrorFromIdentity_(
+          rowIdentity,
           'INVALID_QUANTITY',
           `수량은 1 이상의 정수여야 합니다: ${quantityText}`,
         ),
@@ -129,10 +79,8 @@ function validateOrderRows(rows) {
       const numberValue = parseNumberField_(rawValue);
       if (numberValue === null || numberValue < 0) {
         errors.push(
-          buildOrderRowError_(
-            rowNumber,
-            orderNumber,
-            orderItemNumber,
+          buildOrderRowErrorFromIdentity_(
+            rowIdentity,
             'INVALID_NUMBER',
             `${header}은 비어 있거나 0 이상의 숫자여야 합니다: ${rawValue}`,
           ),
@@ -140,29 +88,8 @@ function validateOrderRows(rows) {
       }
     });
 
-    if (!recipient) {
-      errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'REQUIRED_VALUE',
-          '수령인은 필수입니다.',
-        ),
-      );
-    }
-
-    if (!recipientAddress) {
-      errors.push(
-        buildOrderRowError_(
-          rowNumber,
-          orderNumber,
-          orderItemNumber,
-          'REQUIRED_VALUE',
-          '수령인 주소는 필수입니다.',
-        ),
-      );
-    }
+    addRequiredOrderFieldError_(errors, rowIdentity, '수령인', recipient);
+    addRequiredOrderFieldError_(errors, rowIdentity, '수령인 주소', recipientAddress);
 
     // 같은 주문번호 안에서 헤더 성격 필드는 모두 같은 값이어야 한다.
     if (orderNumber) {
@@ -176,10 +103,8 @@ function validateOrderRows(rows) {
 
         if (inconsistentField) {
           errors.push(
-            buildOrderRowError_(
-              rowNumber,
-              orderNumber,
-              orderItemNumber,
+            buildOrderRowErrorFromIdentity_(
+              rowIdentity,
               'INCONSISTENT_ORDER_HEADER',
               `같은 주문번호의 ${inconsistentField} 값이 서로 다릅니다.`,
             ),
@@ -193,6 +118,26 @@ function validateOrderRows(rows) {
     valid: errors.length === 0,
     errors,
   };
+}
+
+function addRequiredOrderFieldError_(errors, rowIdentity, fieldName, value) {
+  if (value) {
+    return;
+  }
+
+  errors.push(
+    buildOrderRowErrorFromIdentity_(rowIdentity, 'REQUIRED_VALUE', `${fieldName}는 필수입니다.`),
+  );
+}
+
+function buildOrderRowErrorFromIdentity_(rowIdentity, code, message) {
+  return buildOrderRowError_(
+    rowIdentity.rowNumber,
+    rowIdentity.orderNumber,
+    rowIdentity.orderItemNumber,
+    code,
+    message,
+  );
 }
 
 // 주문 파일의 상품품목코드를 상품마스터와 대조해 미등록 상품과 재고 부족을 검사한다.

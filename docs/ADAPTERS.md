@@ -30,7 +30,7 @@
 ## 검증
 
 - `src/Main.js`
-- `src/CsvVaildation.js`
+- `src/CsvValidation.js`
 - `src/Order_CsvParser.js`
 - `src/Order_Validator.js`
 - `src/Order_DuplicateChecker.js`

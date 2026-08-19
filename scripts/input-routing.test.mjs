@@ -8,7 +8,7 @@ const context = vm.createContext({ console });
 [
   'src/Config.js',
   'src/Order_Config.js',
-  'src/CsvVaildation.js',
+  'src/CsvValidation.js',
   'src/HistoryAndError.js',
   'src/Main.js',
   'src/Order_CsvParser.js',

@@ -30,21 +30,11 @@ function createPickingInstruction() {
       getSheetRecords_(headerSheet).map((record) => normalizeWorkflowText_(record['주문번호'])),
     );
     const itemGroups = groupSheetItemsByOrder_(getSheetRecordsWithRows_(itemSheet));
-    const eligibleOrders = getSheetRecordsWithRows_(orderSheet).filter((item) => {
-      const record = item.record;
-      const items = itemGroups[normalizeWorkflowText_(record['주문번호'])] || [];
-      return (
-        normalizeWorkflowText_(record['주문상태']) === ORDER_CONFIG.defaultOrderStatus &&
-        !normalizeWorkflowText_(record['피킹지시번호']) &&
-        !existingPickingOrders.has(normalizeWorkflowText_(record['주문번호'])) &&
-        items.length > 0 &&
-        items.every(
-          (orderItem) =>
-            normalizeWorkflowText_(orderItem.record['처리상태']) ===
-            ORDER_CONFIG.defaultOrderItemStatus,
-        )
-      );
-    });
+    const eligibleOrders = findEligiblePickingOrders_(
+      getSheetRecordsWithRows_(orderSheet),
+      itemGroups,
+      existingPickingOrders,
+    );
 
     if (eligibleOrders.length === 0) {
       return { instructionId: '', orderCount: 0, lineCount: 0, skippedOrders: [] };
@@ -73,19 +63,9 @@ function createPickingInstruction() {
       const slot = acceptedOrders.length + 1;
       const assignee = selectPickingAssignee_(assignees, slot, assignmentUnit);
       const recipient = normalizeWorkflowText_(orderItem.record['수령인']);
-      const orderGroup = `🛒 ${String(slot).padStart(2, '0')} · ${recipient || '수령인 미입력'} · ${orderNumber}`;
-      const sortedLines = orderLines.slice().sort((left, right) => {
-        const leftProduct = productMap[normalizeWorkflowText_(left.record['상품품목코드'])].record;
-        const rightProduct =
-          productMap[normalizeWorkflowText_(right.record['상품품목코드'])].record;
-        return normalizeWorkflowText_(leftProduct['로케이션']).localeCompare(
-          normalizeWorkflowText_(rightProduct['로케이션']),
-        );
-      });
-      const totalQuantity = sortedLines.reduce(
-        (sum, line) => sum + Number(line.record['수량'] || 0),
-        0,
-      );
+      const orderGroup = buildPickingOrderGroup_(slot, recipient, orderNumber);
+      const sortedLines = sortPickingLinesByLocation_(orderLines, productMap);
+      const totalQuantity = sumPickingQuantity_(sortedLines);
 
       headerRows.push([
         instructionId,
@@ -100,10 +80,7 @@ function createPickingInstruction() {
         '',
         '',
       ]);
-      const remainingStock = Object.keys(stockPlan.stockByProduct).reduce((result, code) => {
-        result[code] = stockPlan.stockByProduct[code].availableStock;
-        return result;
-      }, {});
+      const remainingStock = getPickingAvailableStock_(stockPlan);
       sortedLines.forEach((line, index) => {
         const productCode = normalizeWorkflowText_(line.record['상품품목코드']);
         const product = productMap[productCode].record;
@@ -134,9 +111,7 @@ function createPickingInstruction() {
           '',
         ]);
       });
-      Object.keys(remainingStock).forEach((productCode) => {
-        plannedAvailableStock[productCode] = remainingStock[productCode];
-      });
+      Object.assign(plannedAvailableStock, remainingStock);
       acceptedOrders.push({ rowNumber: orderItem.rowNumber, orderNumber, assignee });
     });
 
@@ -181,6 +156,50 @@ function createPickingInstruction() {
   } finally {
     lock.releaseLock();
   }
+}
+
+function findEligiblePickingOrders_(orders, itemGroups, existingPickingOrders) {
+  return orders.filter((order) => {
+    const orderNumber = normalizeWorkflowText_(order.record['주문번호']);
+    const orderItems = itemGroups[orderNumber] || [];
+    const isWaiting =
+      normalizeWorkflowText_(order.record['주문상태']) === ORDER_CONFIG.defaultOrderStatus;
+    const hasNoInstruction = !normalizeWorkflowText_(order.record['피킹지시번호']);
+    const hasNoExistingPickingOrder = !existingPickingOrders.has(orderNumber);
+    const hasOnlyWaitingItems =
+      orderItems.length > 0 &&
+      orderItems.every(
+        (item) =>
+          normalizeWorkflowText_(item.record['처리상태']) === ORDER_CONFIG.defaultOrderItemStatus,
+      );
+
+    return isWaiting && hasNoInstruction && hasNoExistingPickingOrder && hasOnlyWaitingItems;
+  });
+}
+
+function buildPickingOrderGroup_(slot, recipient, orderNumber) {
+  return `🛒 ${String(slot).padStart(2, '0')} · ${recipient || '수령인 미입력'} · ${orderNumber}`;
+}
+
+function sortPickingLinesByLocation_(orderLines, productMap) {
+  return orderLines.slice().sort((left, right) => {
+    const leftCode = normalizeWorkflowText_(left.record['상품품목코드']);
+    const rightCode = normalizeWorkflowText_(right.record['상품품목코드']);
+    const leftLocation = normalizeWorkflowText_(productMap[leftCode].record['로케이션']);
+    const rightLocation = normalizeWorkflowText_(productMap[rightCode].record['로케이션']);
+    return leftLocation.localeCompare(rightLocation);
+  });
+}
+
+function sumPickingQuantity_(lines) {
+  return lines.reduce((sum, line) => sum + Number(line.record['수량'] || 0), 0);
+}
+
+function getPickingAvailableStock_(stockPlan) {
+  return Object.keys(stockPlan.stockByProduct).reduce((stock, productCode) => {
+    stock[productCode] = stockPlan.stockByProduct[productCode].availableStock;
+    return stock;
+  }, {});
 }
 
 // 피킹 지시 직전에 주문 전체를 묶어 실물 재고로 출고 가능한지 다시 확인한다.

@@ -29,7 +29,7 @@
 ### 상품 CSV 기능 수정 시
 
 1. `src/Config.js`에서 헤더/시트/폴더 설정 확인
-2. `src/CsvVaildation.js`에서 파싱/검증 규칙 수정
+2. `src/CsvValidation.js`에서 파싱/검증 규칙 수정
 3. `src/Productimport.js`에서 적재 규칙 수정
 4. `src/Main.js`에서 흐름 수정
 5. 필요한 경우 `src/Setup.js`에서 초기화 구조 수정
