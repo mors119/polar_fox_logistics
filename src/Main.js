@@ -1,3 +1,8 @@
+const INPUT_TYPE = Object.freeze({
+  order: 'order',
+  product: 'product',
+});
+
 // 공통 input 폴더를 순회하면서 헤더 구조에 따라 상품/주문 처리 흐름으로 자동 분기한다.
 function scanInputFolder() {
   const lock = LockService.getScriptLock();
@@ -46,13 +51,11 @@ function routeInputFile_(file) {
 
   try {
     const table = parseCsvFile_(file);
-    const nonEmptyRows = table.filter((row) =>
-      row.some((value) => String(value ?? '').trim() !== ''),
-    );
-    const headers = nonEmptyRows.length > 0 ? nonEmptyRows[0].map(normalizeHeader_) : [];
+    const nonEmptyRows = removeEmptyTableRows_(table);
+    const headers = getTableHeaders_(nonEmptyRows);
     const inputType = detectInputTypeFromHeaders_(headers);
 
-    if (inputType === 'order') {
+    if (inputType === INPUT_TYPE.order) {
       return processOrderFile(file, nonEmptyRows);
     }
 
@@ -78,17 +81,23 @@ function routeInputFile_(file) {
   }
 }
 
+// 표의 완전히 빈 행은 입력 종류 판별과 실제 적재 모두에서 제외한다.
+function removeEmptyTableRows_(table) {
+  return (table || []).filter((row) => row.some((value) => String(value ?? '').trim() !== ''));
+}
+
+// 빈 표도 안전하게 처리하도록 첫 행이 있을 때만 정규화된 헤더를 반환한다.
+function getTableHeaders_(table) {
+  return table.length > 0 ? table[0].map(normalizeHeader_) : [];
+}
+
 // 주문/상품 고유 필수 헤더가 모두 있는지 비교해 입력 종류를 결정한다.
 function detectInputTypeFromHeaders_(headers) {
   const normalizedHeaders = (headers || []).map(normalizeHeader_).filter(Boolean);
   const normalizedOrderHeaders = normalizedHeaders.map(normalizeOrderImportHeader_);
   const normalizedProductHeaders = normalizedHeaders.map(normalizeProductImportHeader_);
-  const hasOrderHeaders = REQUIRED_ORDER_HEADERS.every((header) =>
-    normalizedOrderHeaders.includes(header),
-  );
-  const hasProductHeaders = REQUIRED_HEADERS.every((header) =>
-    normalizedProductHeaders.includes(header),
-  );
+  const hasOrderHeaders = includesEveryHeader_(normalizedOrderHeaders, REQUIRED_ORDER_HEADERS);
+  const hasProductHeaders = includesEveryHeader_(normalizedProductHeaders, REQUIRED_HEADERS);
 
   if (hasOrderHeaders && hasProductHeaders) {
     throw appError_(
@@ -99,11 +108,11 @@ function detectInputTypeFromHeaders_(headers) {
   }
 
   if (hasOrderHeaders) {
-    return 'order';
+    return INPUT_TYPE.order;
   }
 
   if (hasProductHeaders) {
-    return 'product';
+    return INPUT_TYPE.product;
   }
 
   const missingOrderHeaders = REQUIRED_ORDER_HEADERS.filter(
@@ -118,6 +127,10 @@ function detectInputTypeFromHeaders_(headers) {
     `주문 또는 상품 파일로 판별할 수 없습니다. 주문 필수 헤더 누락: ${missingOrderHeaders.join(', ')} / 상품 필수 헤더 누락: ${missingProductHeaders.join(', ')}`,
     'INPUT_ROUTING',
   );
+}
+
+function includesEveryHeader_(headers, requiredHeaders) {
+  return requiredHeaders.every((header) => headers.includes(header));
 }
 
 // 상품 CSV 한 개를 파싱, 검증, 저장, 기록, 입력 파일 정리까지 처리하는 메인 흐름이다.

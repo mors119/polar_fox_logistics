@@ -3,15 +3,7 @@ function processOrderFile(file, parsedTable) {
   let parsedCsv = null;
   let historyContext = null;
   let errorCount = 0;
-  let rollbackContext = {
-    orderStartRow: 0,
-    orderRowCount: 0,
-    orderItemStartRow: 0,
-    orderItemRowCount: 0,
-    productStockSnapshots: [],
-    inventoryHistoryStartRow: 0,
-    inventoryHistoryRowCount: 0,
-  };
+  const rollbackContext = createOrderRollbackContext_();
 
   try {
     checkDuplicateFile(file);
@@ -22,37 +14,17 @@ function processOrderFile(file, parsedTable) {
     historyContext = startOrderFileHistory_(file, parsedCsv.rows.length);
 
     // 행 단위 오류는 모두 오류 시트에 남긴 뒤 파일 전체를 실패 처리한다.
-    const rowValidation = validateOrderRows(parsedCsv.rows);
-    if (!rowValidation.valid) {
-      errorCount = rowValidation.errors.length;
-      rowValidation.errors.forEach((error) => {
-        recordImportError(file, 'ROW_VALIDATION', error);
-      });
+    errorCount = assertOrderValidation_(file, validateOrderRows(parsedCsv.rows), {
+      stage: 'ROW_VALIDATION',
+      code: 'ROW_VALIDATION_FAILED',
+      label: '행 검증',
+    });
 
-      const validationError = appError_(
-        'ROW_VALIDATION_FAILED',
-        `행 검증 실패: ${rowValidation.errors.length}건`,
-        'ROW_VALIDATION',
-      );
-      validationError.alreadyLogged = true;
-      throw validationError;
-    }
-
-    const inventoryValidation = validateOrderInventory_(parsedCsv.rows);
-    if (!inventoryValidation.valid) {
-      errorCount = inventoryValidation.errors.length;
-      inventoryValidation.errors.forEach((error) => {
-        recordImportError(file, 'INVENTORY_VALIDATION', error);
-      });
-
-      const inventoryError = appError_(
-        'INVENTORY_VALIDATION_FAILED',
-        `재고 검증 실패: ${inventoryValidation.errors.length}건`,
-        'INVENTORY_VALIDATION',
-      );
-      inventoryError.alreadyLogged = true;
-      throw inventoryError;
-    }
+    errorCount = assertOrderValidation_(file, validateOrderInventory_(parsedCsv.rows), {
+      stage: 'INVENTORY_VALIDATION',
+      code: 'INVENTORY_VALIDATION_FAILED',
+      label: '재고 검증',
+    });
 
     checkDuplicateOrders(parsedCsv.rows);
 
@@ -88,12 +60,10 @@ function processOrderFile(file, parsedTable) {
       orderItems: importedOrderItems.orderItems,
     };
   } catch (error) {
+    errorCount = Math.max(errorCount, error.validationErrorCount || 0);
+
     // 일부라도 저장된 뒤 실패하면 방금 넣은 행만 되돌리려고 롤백을 시도한다.
-    if (
-      rollbackContext.orderRowCount > 0 ||
-      rollbackContext.orderItemRowCount > 0 ||
-      rollbackContext.productStockSnapshots.length > 0
-    ) {
+    if (hasOrderImportChanges_(rollbackContext)) {
       try {
         rollbackImportedRows(rollbackContext);
       } catch (rollbackError) {
@@ -137,4 +107,45 @@ function processOrderFile(file, parsedTable) {
       orderItems: [],
     };
   }
+}
+
+// 부분 저장 실패 시 되돌릴 범위를 한곳에서 초기화한다.
+function createOrderRollbackContext_() {
+  return {
+    orderStartRow: 0,
+    orderRowCount: 0,
+    orderItemStartRow: 0,
+    orderItemRowCount: 0,
+    productStockSnapshots: [],
+    inventoryHistoryStartRow: 0,
+    inventoryHistoryRowCount: 0,
+  };
+}
+
+// 행·재고 검증의 공통 실패 기록 규칙을 적용한다.
+function assertOrderValidation_(file, validation, failure) {
+  if (validation.valid) {
+    return 0;
+  }
+
+  validation.errors.forEach((error) => {
+    recordImportError(file, failure.stage, error);
+  });
+
+  const validationError = appError_(
+    failure.code,
+    `${failure.label} 실패: ${validation.errors.length}건`,
+    failure.stage,
+  );
+  validationError.alreadyLogged = true;
+  validationError.validationErrorCount = validation.errors.length;
+  throw validationError;
+}
+
+function hasOrderImportChanges_(context) {
+  return (
+    context.orderRowCount > 0 ||
+    context.orderItemRowCount > 0 ||
+    context.productStockSnapshots.length > 0
+  );
 }
